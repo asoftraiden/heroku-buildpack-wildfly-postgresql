@@ -15,12 +15,12 @@ ENV_DIR=$3
 
 cd $BUILD_DIR
 
-JBOSS_HOME=$BUILD_DIR/.jboss/wildfly-10.1.0.Final
+JBOSS_HOME=$BUILD_DIR/.jboss/wildfly-16.0.0.Final
 
 : "${JBOSS_HOME:?You need to install Wildfly first. JBOSS_HOME environment variable not found.}"
 
 echo "-----> Downloading postgresql connector from http://central.maven.org/maven2/org.postgresql/postgresql/${POSTGRESQL_VERSION}/postgresql-${POSTGRESQL_VERSION}.jar ... "
-curl -O http://central.maven.org/maven2/org/postgresql/postgresql/${POSTGRESQL_VERSION}/postgresql-${POSTGRESQL_VERSION}.jar          
+curl -O http://central.maven.org/maven2/org/postgresql/postgresql/${POSTGRESQL_VERSION}/postgresql-${POSTGRESQL_VERSION}.jar
 echo "-----> downloaded"
 sha1sum postgresql-${POSTGRESQL_VERSION}.jar | grep $POSTGRESQL_SHA1 > /dev/null 2>&1
 echo "-----> verified"
@@ -35,7 +35,7 @@ until [ $WILDFLY_RUNNING -eq 0 ]; do
 	$JBOSS_HOME/bin/jboss-cli.sh --connect --command=":read-attribute(name=server-state)"
 	WILDFLY_RUNNING=$?
 	sleep 3
-done	
+done
 
 # 2) create postgresql module
 echo "-----> create postgresql module ... "

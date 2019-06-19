@@ -9,8 +9,8 @@ This is a [Heroku Buildpack](https://devcenter.heroku.com/articles/buildpacks) f
 ```console
 $ heroku buildpacks:clear
 $ heroku buildpacks:add heroku/java
-$ heroku buildpacks:add https://github.com/mwiede/heroku-buildpack-wildfly
-$ heroku buildpacks:add https://github.com/mwiede/heroku-buildpack-wildfly-postgresql
+$ heroku buildpacks:add https://github.com/mortenterhart/heroku-buildpack-wildfly
+$ heroku buildpacks:add https://github.com/mortenterhart/heroku-buildpack-wildfly-postgresql
 ```
 
 2. Then deploy your Maven project
