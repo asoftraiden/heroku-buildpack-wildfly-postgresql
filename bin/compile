@@ -47,8 +47,25 @@ $JBOSS_HOME/bin/jboss-cli.sh --connect --command="/subsystem=datasources/jdbc-dr
 
 $JBOSS_HOME/bin/jboss-cli.sh --connect --command="/subsystem=datasources:installed-drivers-list"
 
+echo "-----> create postgresql datasource"
+$JBOSS_HOME/bin/jboss-cli.sh --connect --command="data-source add
+        --name=${DB_NAME}DS
+        --jndi-name=java:/cmd
+        --user-name=\${env.JDBC_DATABASE_USERNAME}
+        --password=\${env.JDBC_DATABASE_PASSWORD}
+        --driver-name=postgresql
+        --connection-url=\${JDBC_DATABASE_URL}
+        --max-pool-size=25
+        --blocking-timeout-wait-millis=5000
+        --enabled=true
+        --jta=true
+        --use-ccm=false
+        --valid-connection-checker-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLValidConnectionChecker
+        --background-validation=true
+        --exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLExceptionSorter"
+
 # 4) shutdown
 echo "-----> shutdown WildFly ... "
-$JBOSS_HOME/bin/jboss-cli.sh --connect command=:shutdown
+$JBOSS_HOME/bin/jboss-cli.sh --connect --command=:shutdown
 
 echo "-----> done"
