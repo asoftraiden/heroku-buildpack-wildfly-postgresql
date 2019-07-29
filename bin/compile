@@ -15,12 +15,20 @@ BUILD_DIR="$1"
 CACHE_DIR="$2"
 ENV_DIR="$3"
 
-cd "$BUILD_DIR"
+VERSION_PROPERTIES="${BUILD_DIR}/system.properties"
+if [ -f "${VERSION_PROPERTIES}" ]; then
+  WILDFLY_VERSION="$(grep "^[^#]" "${VERSION_PROPERTIES}" | grep -E "wildfly\.version[[:blank:]]*=[[:blank:]]*[A-Za-z0-9\.]+$" | sed "s/^[^=]*=//")"
+  echo "-----> Using WildFly version ${WILDFLY_VERSION}"
+fi
 
+WILDFLY_VERSION="${WILDFLY_VERSION:-16.0.0.Final}"
+JBOSS_HOME="${BUILD_DIR}/.jboss/wildfly-${WILDFLY_VERSION}"
 JBOSS_CLI="${JBOSS_HOME}/bin/jboss-cli.sh"
 
 : "${JBOSS_HOME:?You need to install WildFly first. JBOSS_HOME environment variable not found.}"
-echo "-----> JBOSS_HOME is set to ${JBOSS_HOME}"
+echo "-----> JBOSS_HOME is set correctly"
+
+cd "${BUILD_DIR}"
 
 POSTGRESQL_CONNECTOR_LOCATION="${BUILD_DIR}/postgresql-${POSTGRESQL_VERSION}.jar"
 POSTGRESQL_CONNECTOR_URL="http://central.maven.org/maven2/org/postgresql/postgresql/${POSTGRESQL_VERSION}/postgresql-${POSTGRESQL_VERSION}.jar"
