@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # bin/compile <build-dir> <cache-dir> <env-dir>
 
-# PostgreSQL Version
-POSTGRESQL_VERSION="42.2.1"
+# PostgreSQL Connector Version
+POSTGRESQL_CONNECTOR_VERSION="42.2.1"
 
 BP_DIR="$(cd $(dirname $0)/..; pwd)" # absolute path
 BIN_DIR="$BP_DIR/bin"
@@ -27,8 +27,8 @@ echo "-----> JBOSS_HOME is set correctly"
 
 cd "${BUILD_DIR}"
 
-POSTGRESQL_CONNECTOR_LOCATION="${BUILD_DIR}/postgresql-${POSTGRESQL_VERSION}.jar"
-POSTGRESQL_CONNECTOR_URL="http://central.maven.org/maven2/org/postgresql/postgresql/${POSTGRESQL_VERSION}/postgresql-${POSTGRESQL_VERSION}.jar"
+POSTGRESQL_CONNECTOR_LOCATION="${BUILD_DIR}/postgresql-${POSTGRESQL_CONNECTOR_VERSION}.jar"
+POSTGRESQL_CONNECTOR_URL="http://central.maven.org/maven2/org/postgresql/postgresql/${POSTGRESQL_CONNECTOR_VERSION}/postgresql-${POSTGRESQL_CONNECTOR_VERSION}.jar"
 
 echo "-----> Downloading PostgreSQL Connector from ${POSTGRESQL_CONNECTOR_URL} ... "
 curl --output "${POSTGRESQL_CONNECTOR_LOCATION}" "${POSTGRESQL_CONNECTOR_URL}"
@@ -52,7 +52,7 @@ MODULE_NAME="org.postgresql"
 ${JBOSS_CLI} --connect --command="module add --name=${MODULE_NAME} --resources=${POSTGRESQL_CONNECTOR_LOCATION} --dependencies=javax.api,javax.transaction.api"
 
 # 3) Install driver
-echo "-----> Install JDBC driver ..."
+echo "-----> Install PostgreSQL JDBC  driver ..."
 ${JBOSS_CLI} --connect --command="/subsystem=datasources/jdbc-driver=postgresql:add(driver-name=postgresql,driver-module-name=org.postgresql,driver-xa-datasource-class-name=org.postgresql.xa.PGXADataSource)"
 
 ${JBOSS_CLI} --connect --command="/subsystem=datasources:installed-drivers-list"
@@ -91,7 +91,7 @@ ${JBOSS_CLI} --connect --command="data-source add
 # 4) Change Hibernate dialect to PostgreSQL dialect
 if grep -Eq '<property name="hibernate\.dialect"' "${PERSISTENCE_XML}"; then
     echo "-----> Hibernate JPA detected, changing Hibernate dialect to PostgreSQL"
-    sed -Ei "s/org\.hibernate\.dialect\.[A-Za-z0-9]+/org.hibernate.dialect.PostgreSQL82Dialect/" "${PERSISTENCE_XML}"
+    sed -Ei "s/org\.hibernate\.dialect\.[A-Za-z0-9]+/org.hibernate.dialect.PostgreSQL95Dialect/" "${PERSISTENCE_XML}"
 fi
 
 # 5) Shutdown
