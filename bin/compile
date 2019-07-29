@@ -2,7 +2,7 @@
 # bin/compile <build-dir> <cache-dir> <env-dir>
 
 # PostgreSQL Connector Version
-POSTGRESQL_CONNECTOR_VERSION="42.2.1"
+POSTGRESQL_DRIVER_VERSION="42.2.1"
 
 BP_DIR="$(cd $(dirname $0)/..; pwd)" # absolute path
 BIN_DIR="$BP_DIR/bin"
@@ -27,37 +27,39 @@ echo "-----> JBOSS_HOME is set correctly"
 
 cd "${BUILD_DIR}"
 
-POSTGRESQL_CONNECTOR_LOCATION="${BUILD_DIR}/postgresql-${POSTGRESQL_CONNECTOR_VERSION}.jar"
-POSTGRESQL_CONNECTOR_URL="http://central.maven.org/maven2/org/postgresql/postgresql/${POSTGRESQL_CONNECTOR_VERSION}/postgresql-${POSTGRESQL_CONNECTOR_VERSION}.jar"
+POSTGRESQL_DRIVER_LOCATION="${BUILD_DIR}/postgresql-${POSTGRESQL_DRIVER_VERSION}.jar"
+POSTGRESQL_DRIVER_URL="http://central.maven.org/maven2/org/postgresql/postgresql/${POSTGRESQL_DRIVER_VERSION}/postgresql-${POSTGRESQL_DRIVER_VERSION}.jar"
 
-echo "-----> Downloading PostgreSQL Connector from ${POSTGRESQL_CONNECTOR_URL} ... "
-curl --output "${POSTGRESQL_CONNECTOR_LOCATION}" "${POSTGRESQL_CONNECTOR_URL}"
+echo "-----> Downloading PostgreSQL JDBC Driver ${POSTGRESQL_DRIVER_VERSION} from ${POSTGRESQL_DRIVER_URL} ... "
+curl --output "${POSTGRESQL_DRIVER_LOCATION}" "${POSTGRESQL_DRIVER_URL}"
 echo "-----> Downloaded"
-POSTGRESQL_SHA1="$(curl "${POSTGRESQL_CONNECTOR_URL}.sha1")"
-sha1sum "${POSTGRESQL_CONNECTOR_LOCATION}" | grep "${POSTGRESQL_SHA1}" > /dev/null 2>&1
+POSTGRESQL_SHA1="$(curl "${POSTGRESQL_DRIVER_URL}.sha1")"
+sha1sum "${POSTGRESQL_DRIVER_LOCATION}" | grep "${POSTGRESQL_SHA1}" > /dev/null 2>&1
 echo "-----> Verified"
 
 # 1) Startup
-echo "-----> Starting WildFly ..."
+echo "-----> Starting WildFly ${WILDFLY_VERSION} ..."
 ${JBOSS_HOME}/bin/standalone.sh --admin-only &
 
-# Wait until server is started
+# Wait until the server has started
 until ${JBOSS_CLI} --connect --command=":read-attribute(name=server-state)" 2> /dev/null | grep -q "running"; do
 	sleep 1
 done
 
 # 2) Create PostgreSQL module
-echo "-----> Create PostgreSQL module ..."
+echo "-----> Creating PostgreSQL Driver module ..."
 MODULE_NAME="org.postgresql"
-${JBOSS_CLI} --connect --command="module add --name=${MODULE_NAME} --resources=${POSTGRESQL_CONNECTOR_LOCATION} --dependencies=javax.api,javax.transaction.api"
+${JBOSS_CLI} --connect --command="module add --name=${MODULE_NAME} --resources=${POSTGRESQL_DRIVER_LOCATION} --dependencies=javax.api,javax.transaction.api"
+
+rm "${POSTGRESQL_DRIVER_LOCATION}"
 
 # 3) Install driver
-echo "-----> Install PostgreSQL JDBC  driver ..."
+echo "-----> Installing PostgreSQL JDBC Driver ${POSTGRESQL_DRIVER_VERSION} ..."
 ${JBOSS_CLI} --connect --command="/subsystem=datasources/jdbc-driver=postgresql:add(driver-name=postgresql,driver-module-name=org.postgresql,driver-xa-datasource-class-name=org.postgresql.xa.PGXADataSource)"
 
 ${JBOSS_CLI} --connect --command="/subsystem=datasources:installed-drivers-list"
 
-echo "-----> Create PostgreSQL Datasource"
+echo "-----> Creating PostgreSQL Datasource"
 
 PERSISTENCE_XML="${BUILD_DIR}/src/main/resources/META-INF/persistence.xml"
 if [ -f "${PERSISTENCE_XML}" ]; then
