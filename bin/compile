@@ -1,56 +1,75 @@
 #!/usr/bin/env bash
 # bin/compile <build-dir> <cache-dir> <env-dir>
 
-# versions
-POSTGRESQL_VERSION="42.2.1"
-POSTGRESQL_SHA1="b7f61848ac43ae9fa6e38935bfd75628b7fc9086"
+# fail fast
+set -e
 
-BP_DIR=$(cd $(dirname $0)/..; pwd) # absolute path
-BIN_DIR=$BP_DIR/bin
+# PostgreSQL Version
+POSTGRESQL_VERSION="42.2.1"
+
+BP_DIR="$(cd $(dirname $0)/..; pwd)" # absolute path
+BIN_DIR="$BP_DIR/bin"
 
 # parse args
-BUILD_DIR=$1
-CACHE_DIR=$2
-ENV_DIR=$3
+BUILD_DIR="$1"
+CACHE_DIR="$2"
+ENV_DIR="$3"
 
-cd $BUILD_DIR
+cd "$BUILD_DIR"
 
-JBOSS_HOME=$BUILD_DIR/.jboss/wildfly-16.0.0.Final
+JBOSS_CLI="${JBOSS_HOME}/bin/jboss-cli.sh"
 
 : "${JBOSS_HOME:?You need to install Wildfly first. JBOSS_HOME environment variable not found.}"
+echo "-----> JBOSS_HOME is set to ${JBOSS_HOME}"
 
-echo "-----> Downloading postgresql connector from http://central.maven.org/maven2/org.postgresql/postgresql/${POSTGRESQL_VERSION}/postgresql-${POSTGRESQL_VERSION}.jar ... "
-curl -O http://central.maven.org/maven2/org/postgresql/postgresql/${POSTGRESQL_VERSION}/postgresql-${POSTGRESQL_VERSION}.jar
-echo "-----> downloaded"
-sha1sum postgresql-${POSTGRESQL_VERSION}.jar | grep $POSTGRESQL_SHA1 > /dev/null 2>&1
-echo "-----> verified"
+POSTGRESQL_CONNECTOR_LOCATION="${BUILD_DIR}/postgresql-${POSTGRESQL_VERSION}.jar"
+POSTGRESQL_CONNECTOR_URL="http://central.maven.org/maven2/org/postgresql/postgresql/${POSTGRESQL_VERSION}/postgresql-${POSTGRESQL_VERSION}.jar"
 
-# 1) startup
-echo "-----> Starting WildFly ... "
-$JBOSS_HOME/bin/standalone.sh --admin-only &
+echo "-----> Downloading PostgreSQL Connector from ${POSTGRESQL_CONNECTOR_URL} ... "
+curl --output "${POSTGRESQL_CONNECTOR_LOCATION}" "${POSTGRESQL_CONNECTOR_URL}"
+echo "-----> Downloaded"
+POSTGRESQL_SHA1="$(curl "${POSTGRESQL_CONNECTOR_URL}.sha1")"
+sha1sum "${POSTGRESQL_CONNECTOR_LOCATION}" | grep "${POSTGRESQL_SHA1}" > /dev/null 2>&1
+echo "-----> Verified"
 
-WILDFLY_RUNNING=1
+# 1) Startup
+echo "-----> Starting WildFly ..."
+${JBOSS_HOME}/bin/standalone.sh --admin-only &
 
-until [ $WILDFLY_RUNNING -eq 0 ]; do
-	$JBOSS_HOME/bin/jboss-cli.sh --connect --command=":read-attribute(name=server-state)"
-	WILDFLY_RUNNING=$?
-	sleep 3
+# Wait until server is started
+until ${JBOSS_CLI} --connect --command=":read-attribute(name=server-state)" 2> /dev/null | grep -q "running"; do
+	sleep 1
 done
 
-# 2) create postgresql module
-echo "-----> create postgresql module ... "
-$JBOSS_HOME/bin/jboss-cli.sh --connect --command="module add --name=org.postgresql --resources=$BUILD_DIR/postgresql-$POSTGRESQL_VERSION.jar --dependencies=javax.api,javax.transaction.api"
+# 2) Create PostgreSQL module
+echo "-----> Create PostgreSQL module ..."
+MODULE_NAME="org.postgresql"
+${JBOSS_CLI} --connect --command="module add --name=${MODULE_NAME} --resources=${POSTGRESQL_CONNECTOR_LOCATION} --dependencies=javax.api,javax.transaction.api"
 
-# 3) install driver
-echo "-----> install JDBC driver ... "
-$JBOSS_HOME/bin/jboss-cli.sh --connect --command="/subsystem=datasources/jdbc-driver=postgresql:add(driver-name=postgresql,driver-module-name=org.postgresql,driver-xa-datasource-class-name=org.postgresql.xa.PGXADataSource)"
+# 3) Install driver
+echo "-----> Install JDBC driver ..."
+${JBOSS_CLI} --connect --command="/subsystem=datasources/jdbc-driver=postgresql:add(driver-name=postgresql,driver-module-name=org.postgresql,driver-xa-datasource-class-name=org.postgresql.xa.PGXADataSource)"
 
-$JBOSS_HOME/bin/jboss-cli.sh --connect --command="/subsystem=datasources:installed-drivers-list"
+${JBOSS_CLI} --connect --command="/subsystem=datasources:installed-drivers-list"
 
-echo "-----> create postgresql datasource"
-$JBOSS_HOME/bin/jboss-cli.sh --connect --command="data-source add
-        --name=${DB_NAME}DS
-        --jndi-name=java:/cmd
+echo "-----> Create PostgreSQL Datasource"
+
+PERSISTENCE_XML="${BUILD_DIR}/src/main/resources/META-INF/persistence.xml"
+if [ -f "${PERSISTENCE_XML}" ]; then
+    DATASOURCE_JNDI_NAME="$(grep -Eo "<jta-data-source>[A-Za-z0-9/:-]+</jta-data-source>" "${PERSISTENCE_XML}" | sed -E "s,^<jta-data-source>|</jta-data-source>$,,g")"
+    PERSISTENCE_UNIT_NAME="$(grep -Eo "<persistence-unit .+>" "${PERSISTENCE_XML}" | grep -Eo 'name="[^"]+"' | sed -E 's/^[^"]+"|"$//g')"
+    DATASOURCE_NAME="${PERSISTENCE_UNIT_NAME}DS"
+    echo "-----> Found Datasource Definition in persistence.xml"
+    echo "       Using Datasource name ${DATASOURCE_NAME}"
+    echo "       Using JNDI name ${DATASOURCE_JNDI_NAME}"
+fi
+
+DATASOURCE_JNDI_NAME="${DATASOURCE_JNDI_NAME:-java:jboss/datasources/appDS}"
+DATASOURCE_NAME="${DATASOURCE_NAME:-appDS}"
+
+${JBOSS_CLI} --connect --command="data-source add
+        --name=${DATASOURCE_NAME}
+        --jndi-name=${DATASOURCE_JNDI_NAME}
         --user-name=\${env.JDBC_DATABASE_USERNAME}
         --password=\${env.JDBC_DATABASE_PASSWORD}
         --driver-name=postgresql
@@ -64,8 +83,14 @@ $JBOSS_HOME/bin/jboss-cli.sh --connect --command="data-source add
         --background-validation=true
         --exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLExceptionSorter"
 
-# 4) shutdown
-echo "-----> shutdown WildFly ... "
-$JBOSS_HOME/bin/jboss-cli.sh --connect --command=:shutdown
+# 4) Change Hibernate dialect to PostgreSQL dialect
+if grep -Eq '<property name="hibernate\.dialect"' "${PERSISTENCE_XML}"; then
+    echo "-----> Hibernate JPA detected, changing Hibernate dialect to PostgreSQL"
+    sed -Ei "s/org\.hibernate\.dialect\.[A-Za-z0-9]+/org.hibernate.dialect.PostgreSQL82Dialect/" "${PERSISTENCE_XML}"
+fi
 
-echo "-----> done"
+# 5) Shutdown
+echo "-----> Shutting down WildFly ..."
+${JBOSS_CLI} --connect --command=:shutdown
+
+echo "-----> Done"
