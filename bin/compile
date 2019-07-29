@@ -19,7 +19,7 @@ cd "$BUILD_DIR"
 
 JBOSS_CLI="${JBOSS_HOME}/bin/jboss-cli.sh"
 
-: "${JBOSS_HOME:?You need to install Wildfly first. JBOSS_HOME environment variable not found.}"
+: "${JBOSS_HOME:?You need to install WildFly first. JBOSS_HOME environment variable not found.}"
 echo "-----> JBOSS_HOME is set to ${JBOSS_HOME}"
 
 POSTGRESQL_CONNECTOR_LOCATION="${BUILD_DIR}/postgresql-${POSTGRESQL_VERSION}.jar"

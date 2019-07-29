@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 # bin/detect <build-dir>
 
-echo "Wildfly-Postgresql" && exit 0
+echo "WildFly PostgreSQL" && exit 0
