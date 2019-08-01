@@ -12,6 +12,8 @@ BUILD_DIR="$1"
 CACHE_DIR="$2"
 ENV_DIR="$3"
 
+source "${BP_DIR}/lib/commons.sh"
+
 VERSION_PROPERTIES="${BUILD_DIR}/system.properties"
 if [ -f "${VERSION_PROPERTIES}" ]; then
   WILDFLY_VERSION="$(grep "^[^#]" "${VERSION_PROPERTIES}" | grep -E "wildfly\.version[[:blank:]]*=[[:blank:]]*[A-Za-z0-9\.]+$" | sed "s/^[^=]*=//")"
@@ -39,7 +41,7 @@ echo "-----> Verified"
 
 # 1) Startup
 echo "-----> Starting WildFly ${WILDFLY_VERSION} ..."
-${JBOSS_HOME}/bin/standalone.sh --admin-only &
+${JBOSS_HOME}/bin/standalone.sh --admin-only | indent &
 
 # Wait until the server has started
 until ${JBOSS_CLI} --connect --command=":read-attribute(name=server-state)" 2> /dev/null | grep -q "running"; do
@@ -49,15 +51,13 @@ done
 # 2) Create PostgreSQL module
 echo "-----> Creating PostgreSQL Driver module ..."
 MODULE_NAME="org.postgresql"
-${JBOSS_CLI} --connect --command="module add --name=${MODULE_NAME} --resources=${POSTGRESQL_DRIVER_LOCATION} --dependencies=javax.api,javax.transaction.api"
+${JBOSS_CLI} --connect --command="module add --name=${MODULE_NAME} --resources=${POSTGRESQL_DRIVER_LOCATION} --dependencies=javax.api,javax.transaction.api" | indent
 
 rm "${POSTGRESQL_DRIVER_LOCATION}"
 
 # 3) Install driver
 echo "-----> Installing PostgreSQL JDBC Driver ${POSTGRESQL_DRIVER_VERSION} ..."
-${JBOSS_CLI} --connect --command="/subsystem=datasources/jdbc-driver=postgresql:add(driver-name=postgresql,driver-module-name=org.postgresql,driver-xa-datasource-class-name=org.postgresql.xa.PGXADataSource)"
-
-${JBOSS_CLI} --connect --command="/subsystem=datasources:installed-drivers-list"
+${JBOSS_CLI} --connect --command="/subsystem=datasources/jdbc-driver=postgresql:add(driver-name=postgresql,driver-module-name=org.postgresql,driver-xa-datasource-class-name=org.postgresql.xa.PGXADataSource)" | indent
 
 echo "-----> Creating PostgreSQL Datasource"
 
@@ -88,7 +88,7 @@ ${JBOSS_CLI} --connect --command="data-source add
         --use-ccm=false
         --valid-connection-checker-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLValidConnectionChecker
         --background-validation=true
-        --exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLExceptionSorter"
+        --exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLExceptionSorter" | indent
 
 # 4) Change Hibernate dialect to PostgreSQL dialect
 if grep -Eq '<property name="hibernate\.dialect"' "${PERSISTENCE_XML}"; then
@@ -98,6 +98,6 @@ fi
 
 # 5) Shutdown
 echo "-----> Shutting down WildFly ..."
-${JBOSS_CLI} --connect --command=:shutdown
+${JBOSS_CLI} --connect --command=:shutdown | indent
 
 echo "-----> Done"
