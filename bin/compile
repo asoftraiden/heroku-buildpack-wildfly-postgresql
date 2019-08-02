@@ -4,7 +4,7 @@
 # PostgreSQL Connector Version
 POSTGRESQL_DRIVER_VERSION="42.2.1"
 
-BP_DIR="$(cd $(dirname $0)/..; pwd)" # absolute path
+BP_DIR="$(cd "$(dirname "$0")/.."; pwd)" # absolute path
 BIN_DIR="$BP_DIR/bin"
 
 # parse args
@@ -25,6 +25,13 @@ JBOSS_HOME="${BUILD_DIR}/.jboss/wildfly-${WILDFLY_VERSION}"
 JBOSS_CLI="${JBOSS_HOME}/bin/jboss-cli.sh"
 
 : "${JBOSS_HOME:?You need to install WildFly first. JBOSS_HOME environment variable not found.}"
+
+if ! [ -d "${JBOSS_HOME}" ]; then
+  echo " !     JBOSS_HOME directory does not exist: WildFly is not installed."
+  echo "       Did you use the Heroku WildFly Buildpack previously?"
+  exit 1
+fi
+
 echo "-----> JBOSS_HOME is set correctly"
 
 cd "${BUILD_DIR}"
@@ -57,11 +64,11 @@ rm "${POSTGRESQL_DRIVER_LOCATION}"
 
 # 3) Install driver
 echo "-----> Installing PostgreSQL JDBC Driver ${POSTGRESQL_DRIVER_VERSION} ..."
-${JBOSS_CLI} --connect --command="/subsystem=datasources/jdbc-driver=postgresql:add(driver-name=postgresql,driver-module-name=org.postgresql,driver-xa-datasource-class-name=org.postgresql.xa.PGXADataSource)" | indent
+DRIVER_NAME="postgresql"
+${JBOSS_CLI} --connect --command="/subsystem=datasources/jdbc-driver=postgresql:add(driver-name=${DRIVER_NAME},driver-module-name=org.postgresql,driver-xa-datasource-class-name=org.postgresql.xa.PGXADataSource)" | indent
 
 echo "-----> Creating PostgreSQL Datasource"
-
-PERSISTENCE_XML="${BUILD_DIR}/src/main/resources/META-INF/persistence.xml"
+PERSISTENCE_XML="${PERSISTENCE_XML:-${BUILD_DIR}/src/main/resources/META-INF/persistence.xml}"
 if [ -f "${PERSISTENCE_XML}" ]; then
     DATASOURCE_JNDI_NAME="$(grep -Eo "<jta-data-source>[A-Za-z0-9/:-]+</jta-data-source>" "${PERSISTENCE_XML}" | sed -E "s,^<jta-data-source>|</jta-data-source>$,,g")"
     PERSISTENCE_UNIT_NAME="$(grep -Eo "<persistence-unit .+>" "${PERSISTENCE_XML}" | grep -Eo 'name="[^"]+"' | sed -E 's/^[^"]+"|"$//g')"
@@ -79,7 +86,7 @@ ${JBOSS_CLI} --connect --command="data-source add
         --jndi-name=${DATASOURCE_JNDI_NAME}
         --user-name=\${env.JDBC_DATABASE_USERNAME}
         --password=\${env.JDBC_DATABASE_PASSWORD}
-        --driver-name=postgresql
+        --driver-name=${DRIVER_NAME}
         --connection-url=\${env.JDBC_DATABASE_URL}
         --max-pool-size=25
         --blocking-timeout-wait-millis=5000
@@ -91,13 +98,13 @@ ${JBOSS_CLI} --connect --command="data-source add
         --exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLExceptionSorter" | indent
 
 # 4) Change Hibernate dialect to PostgreSQL dialect
-if grep -Eq '<property name="hibernate\.dialect"' "${PERSISTENCE_XML}"; then
+if grep -Eq '<property [[:blank:]]*name="hibernate\.dialect"' "${PERSISTENCE_XML}"; then
     echo "-----> Hibernate JPA detected, changing Hibernate dialect to PostgreSQL"
-    sed -Ei "s/org\.hibernate\.dialect\.[A-Za-z0-9]+/org.hibernate.dialect.PostgreSQL95Dialect/" "${PERSISTENCE_XML}"
+    sed -Ei "s/org\.hibernate\.dialect\.[A-Za-z0-9]+Dialect/org.hibernate.dialect.PostgreSQL95Dialect/" "${PERSISTENCE_XML}"
 fi
 
-# 5) Shutdown
+# 5) Shutdown  WildFly
 echo "-----> Shutting down WildFly ..."
-${JBOSS_CLI} --connect --command=:shutdown | indent
+${JBOSS_CLI} --connect --command=":shutdown" | indent
 
 echo "-----> Done"
