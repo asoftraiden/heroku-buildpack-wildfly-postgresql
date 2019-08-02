@@ -7,7 +7,7 @@ This buildpack is intended to be used in conjunction with the [Wildfly Buildpack
 
 ## Usage
 
-## Using with the Java and Wildfly Buildpacks
+### Using with the Java and Wildfly Buildpacks
 
 You can use the standard [Heroku Java buildpack][java-buildpack] for creating a WAR file,
 the [Wildfly buildpack][wildfly-buildpack] for downloading and installing a Wildfly
@@ -26,7 +26,7 @@ This buildpack depends on the [Wildfly buildpack][wildfly-buildpack] that instal
 the Wildfly server in the requested version to the correct location. So make sure
 to add the buildpacks in the correct order.
 
-## Configuring the Wildfly version
+### Configuring the Wildfly version
 
 Create a `system.properties` file in the root directory of your project and set
 the `wildfly.version` property as follows:
@@ -38,13 +38,13 @@ wildfly.version=16.0.0.Final
 This is necessary because the buildpack needs to know the location of the Wildfly
 installation directory.
 
-## PostgreSQL Driver
+### PostgreSQL Driver
 
 The buildpack downloads the PostgreSQL JDBC Driver Version `42.2.1` and adds it
 to the Wildfly server as a module first. The driver is then installed at the
 Wildfly server.
 
-## Configuring the PostgreSQL Datasource
+### Configuring the PostgreSQL Datasource
 
 By default, the buildpack looks for the file `src/main/resources/META-INF/persistence.xml`
 to determine the JNDI name and datasource name used by the project. A new datasource
@@ -77,7 +77,7 @@ An example for a valid `persistence.xml` is:
 The value inside the `<jta-data-source>` tag is used as JNDI name and the name of
 the persistence unit including a trailing `DS` is used as name for the new datasource.
 
-## Auto-updating the Hibernate Dialect
+### Auto-updating the Hibernate Dialect
 
 When using Hibernate as a JPA provider like in the example above the buildpack
 changes the Hibernate Dialect automatically to PostgreSQL. This is done by
