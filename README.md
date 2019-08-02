@@ -26,6 +26,8 @@ This buildpack depends on the [Wildfly buildpack][wildfly-buildpack] that instal
 the Wildfly server in the requested version to the correct location. So make sure
 to add the buildpacks in the correct order.
 
+## Configuration
+
 ### Configuring the Wildfly version
 
 Create a `system.properties` file in the root directory of your project and set
