@@ -121,7 +121,7 @@ function updateHibernateDialect() {
 
         # Patch the copied WAR file inside the temporary directory
         # with the updated persistence.xml
-        (cd "${extraction_directory}" && zip --update "${war_basename}" "${persistence_file}")
+        (cd "${extraction_directory}" && zip --update "${war_basename}" "${persistence_file}" >/dev/null)
 
         # Move the WAR file back to its original path
         # overwriting the original file
@@ -134,10 +134,12 @@ function updateHibernateDialect() {
 
 if [ -f "${PERSISTENCE_XML}" ]; then
     PERSISTENCE_XML_WAR_PATH="WEB-INF/classes/META-INF/persistence.xml"
+    TARGET_DIALECT="org.hibernate.dialect.PostgreSQL95Dialect"
     if grep -Eq '<property [[:blank:]]*name="hibernate\.dialect"' "${PERSISTENCE_XML}"; then
-        echo "-----> Hibernate JPA detected, changing naHiberte dialect to PostgreSQL"
+        echo "-----> Hibernate JPA detected, changing Hibernate dialect to PostgreSQL"
         for war in "${JBOSS_HOME}/standalone/deployments"/*.war; do
-            updateHibernateDialect "${war}" "${PERSISTENCE_XML_WAR_PATH}" "org.hibernate.dialect.PostgreSQL95Dialect"
+            updateHibernateDialect "${war}" "${PERSISTENCE_XML_WAR_PATH}" "${TARGET_DIALECT}"
+            printf "       Updated dialect for deployment '%s' to %s" "${war##*/}" "${TARGET_DIALECT}"
         done
     fi
 fi
