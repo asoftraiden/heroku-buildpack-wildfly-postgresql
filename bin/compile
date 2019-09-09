@@ -76,6 +76,8 @@ if [ -f "${PERSISTENCE_XML}" ]; then
     echo "-----> Found Datasource Definition in persistence.xml"
     echo "       Using Datasource name ${DATASOURCE_NAME}"
     echo "       Using JNDI name ${DATASOURCE_JNDI_NAME}"
+else
+    echo "-----> persistence.xml not found "
 fi
 
 DATASOURCE_JNDI_NAME="${DATASOURCE_JNDI_NAME:-java:jboss/datasources/appDS}"
@@ -98,9 +100,46 @@ ${JBOSS_CLI} --connect --command="data-source add
         --exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLExceptionSorter" | indent
 
 # 4) Change Hibernate dialect to PostgreSQL dialect
-if grep -Eq '<property [[:blank:]]*name="hibernate\.dialect"' "${PERSISTENCE_XML}"; then
-    echo "-----> Hibernate JPA detected, changing Hibernate dialect to PostgreSQL"
-    sed -Ei "s/org\.hibernate\.dialect\.[A-Za-z0-9]+Dialect/org.hibernate.dialect.PostgreSQL95Dialect/" "${PERSISTENCE_XML}"
+function updateHibernateDialect() {
+    local war_file="$1"
+    local persistence_file="$2"
+    local dialect="$3"
+
+    # Verify that the given war file exists and that it
+    # contains the persistence.xml
+    if [ -f "${war_file}" ] && unzip -l -q "${war_file}" "${persistence_file}" >/dev/null; then
+        # Extract the persistence.xml to a temporary directory
+        local war_basename="${war_file##*/}"
+        local extraction_directory="$(mktemp -d "/tmp/${war_basename%.war}.XXXXXX")"
+        unzip -d "${extraction_directory}" "${war_file}" "${persistence_file}"
+
+        # Replace Hibernate dialect to passed one
+        sed -Ei "s/org\.hibernate\.dialect\.[A-Za-z0-9]+Dialect/${dialect////\\/}/" "${extraction_directory}/${persistence_file}"
+
+        # Copy the WAR file to the extraction directory
+        cp -f "${war_file}" "${extraction_directory}"
+
+        # Patch the copied WAR file inside the temporary directory
+        # with the updated persistence.xml
+        (cd "${extraction_directory}" && zip --update "${war_basename}" "${persistence_file}")
+
+        # Move the WAR file back to its original path
+        # overwriting the original file
+        mv -f "${extraction_directory}/${war_basename}" "${war_file}"
+
+        # Delete the temporary extraction directory
+        rm -rf "${extraction_directory}"
+    fi
+}
+
+if [ -f "${PERSISTENCE_XML}" ]; then
+    PERSISTENCE_XML_WAR_PATH="WEB-INF/classes/META-INF/persistence.xml"
+    if grep -Eq '<property [[:blank:]]*name="hibernate\.dialect"' "${PERSISTENCE_XML}"; then
+        echo "-----> Hibernate JPA detected, changing naHiberte dialect to PostgreSQL"
+        for war in "${JBOSS_HOME}/standalone/deployments"/*.war; do
+            updateHibernateDialect "${war}" "${PERSISTENCE_XML_WAR_PATH}" "org.hibernate.dialect.PostgreSQL95Dialect"
+        done
+    fi
 fi
 
 # 5) Shutdown  WildFly
