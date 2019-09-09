@@ -111,7 +111,7 @@ function updateHibernateDialect() {
         # Extract the persistence.xml to a temporary directory
         local war_basename="${war_file##*/}"
         local extraction_directory="$(mktemp -d "/tmp/${war_basename%.war}.XXXXXX")"
-        unzip -d "${extraction_directory}" "${war_file}" "${persistence_file}"
+        unzip -d "${extraction_directory}" "${war_file}" "${persistence_file}" >/dev/null
 
         # Replace Hibernate dialect to passed one
         sed -Ei "s/org\.hibernate\.dialect\.[A-Za-z0-9]+Dialect/${dialect////\\/}/" "${extraction_directory}/${persistence_file}"
@@ -139,7 +139,7 @@ if [ -f "${PERSISTENCE_XML}" ]; then
         echo "-----> Hibernate JPA detected, changing Hibernate dialect to PostgreSQL"
         for war in "${JBOSS_HOME}/standalone/deployments"/*.war; do
             updateHibernateDialect "${war}" "${PERSISTENCE_XML_WAR_PATH}" "${TARGET_DIALECT}"
-            printf "       Updated dialect for deployment '%s' to %s" "${war##*/}" "${TARGET_DIALECT}"
+            printf "       Updated dialect for deployment '%s' to %s\n" "${war##*/}" "${TARGET_DIALECT}"
         done
     fi
 fi
