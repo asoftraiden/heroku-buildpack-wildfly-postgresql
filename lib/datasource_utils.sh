@@ -455,4 +455,4 @@ _load_heroku_wildfly_buildpack() {
     source "${herokuWildflyBuildpackDir}/lib/wildfly_utils.sh"
 }
 
-#_load_heroku_wildfly_buildpack
+_load_heroku_wildfly_buildpack
