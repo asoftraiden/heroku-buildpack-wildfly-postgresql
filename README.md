@@ -5,7 +5,7 @@ adding a PostgreSQL Driver and Datasource to an existing [Wildfly AS](http://wil
 
 This buildpack is intended to be used in conjunction with the [Wildfly Buildpack][wildfly-buildpack].
 
-## Usage
+## Standalone Usage
 
 ### Using with the Java and Wildfly Buildpacks
 
@@ -26,7 +26,26 @@ This buildpack depends on the [Wildfly buildpack][wildfly-buildpack] that instal
 the Wildfly server in the requested version to the correct location. So make sure
 to add the buildpacks in the correct order.
 
+## Usage from a Buildpack
+
+```bash
+git clone --quiet https://github.com/mortenterhart/heroku-buildpack-wildfly-postgresql.git /tmp/heroku-buildpack-wildfly-postgresqlp/heroku-buildpack-wildfly-postgresql
+source /tmp/heroku-buildpack-wildfly-postgresql/lib/datasource_utils.sh
+```
+
 ## Configuration
+
+### Config Vars
+
+| **Name** | **Default Value** | **Description** |
+|:--------:|:-----------------:|:----------------|
+| `DATASOURCE_NAME`  | `appDS` | The name of the PostgreSQL datasource |
+| `DATASOURCE_JNDI_NAME` | `java:jboss/datasources/appDS` | The JNDI name of the persistence unit defined in `persistence.xml`. Overrides the value automatically read from `persistence.xml`. |
+| `ONLY_INSTALL_DRIVER` | `false` | When set to `true` this buildpack will only install the driver and not create the datasource for WildFly. |
+| `CUSTOM_WAR_PERSISTENCE_XML_PATH` | unset |  |
+| `JBOSS_HOME` | automatically set | The path to the WildFly home directory |
+| `HIBERNATE_DIALECT` | `org.hibernate.dialect.PostgreSQL95Dialect` | The Hibernate dialect that is automatically updated |
+| `DISABLE_HIBERNATE_AUTO_UPDATE` | `false` | When set to `true` the auto update for the Hibernate dialect in the `persistence.xml` is disabled. |
 
 ### Configuring the Wildfly version
 
@@ -83,7 +102,7 @@ the persistence unit including a trailing `DS` is used as name for the new datas
 
 When using Hibernate as a JPA provider like in the example above the buildpack
 changes the Hibernate Dialect automatically to PostgreSQL. This is done by
-replacing the given value in the `persistence.xml`. 
+replacing the given value in the `persistence.xml`.
 
 [java-buildpack]: https://github.com/heroku/heroku-buildpack-java "Heroku Java Buildpack"
 [wildfly-buildpack]: https://github.com/mortenterhart/heroku-buildpack-wildfly "WildFly buildpack"
