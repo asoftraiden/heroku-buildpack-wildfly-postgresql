@@ -1,151 +1,30 @@
 #!/usr/bin/env bash
 # bin/compile <build-dir> <cache-dir> <env-dir>
+#
+# shellcheck disable=SC1090
 
-# PostgreSQL Connector Version
-POSTGRESQL_DRIVER_VERSION="42.2.1"
+# fail fast
+set -e
 
-BP_DIR="$(cd "$(dirname "$0")/.."; pwd)" # absolute path
-BIN_DIR="$BP_DIR/bin"
+# Get the absolute path of the builpack directory
+BP_DIR="$(cd "${0%/*}/.."; pwd)"
+BIN_DIR="${BP_DIR}/bin"
 
 # parse args
 BUILD_DIR="$1"
 CACHE_DIR="$2"
 ENV_DIR="$3"
 
-source "${BP_DIR}/lib/commons.sh"
+# Load WildFly utilites from Heroku WildFly buildpack
+HEROKU_WILDFLY_BUILDPACK_DIR="/tmp/heroku-buildpack-wildfly"
+git clone --quiet https://github.com/mortenterhart/heroku-buildpack-wildfly.git "${HEROKU_WILDFLY_BUILDPACK_DIR}"
+source "${HEROKU_WILDFLY_BUILDPACK_DIR}/lib/wildfly_utils.sh"
 
-VERSION_PROPERTIES="${BUILD_DIR}/system.properties"
-if [ -f "${VERSION_PROPERTIES}" ]; then
-  WILDFLY_VERSION="$(grep "^[^#]" "${VERSION_PROPERTIES}" | grep -E "wildfly\.version[[:blank:]]*=[[:blank:]]*[A-Za-z0-9\.]+$" | sed "s/^[^=]*=//")"
-  echo "-----> Using WildFly version ${WILDFLY_VERSION}"
-fi
+source "${BP_DIR}/lib/datasource_utils.sh"
+source "${BP_DIR}/lib/environment.sh"
+source "${BP_DIR}/lib/persistence_utils.sh"
 
-WILDFLY_VERSION="${WILDFLY_VERSION:-16.0.0.Final}"
-JBOSS_HOME="${BUILD_DIR}/.jboss/wildfly-${WILDFLY_VERSION}"
-JBOSS_CLI="${JBOSS_HOME}/bin/jboss-cli.sh"
+export_env_dir "${ENV_DIR}"
 
-: "${JBOSS_HOME:?You need to install WildFly first. JBOSS_HOME environment variable not found.}"
-
-if ! [ -d "${JBOSS_HOME}" ]; then
-  echo " !     JBOSS_HOME directory does not exist: WildFly is not installed."
-  echo "       Did you use the Heroku WildFly Buildpack previously?"
-  exit 1
-fi
-
-echo "-----> JBOSS_HOME is set correctly"
-
-cd "${BUILD_DIR}"
-
-POSTGRESQL_DRIVER_LOCATION="${BUILD_DIR}/postgresql-${POSTGRESQL_DRIVER_VERSION}.jar"
-POSTGRESQL_DRIVER_URL="http://central.maven.org/maven2/org/postgresql/postgresql/${POSTGRESQL_DRIVER_VERSION}/postgresql-${POSTGRESQL_DRIVER_VERSION}.jar"
-
-echo "-----> Downloading PostgreSQL JDBC Driver ${POSTGRESQL_DRIVER_VERSION} from ${POSTGRESQL_DRIVER_URL} ... "
-curl --output "${POSTGRESQL_DRIVER_LOCATION}" "${POSTGRESQL_DRIVER_URL}"
-echo "-----> Downloaded"
-POSTGRESQL_SHA1="$(curl "${POSTGRESQL_DRIVER_URL}.sha1")"
-sha1sum "${POSTGRESQL_DRIVER_LOCATION}" | grep "${POSTGRESQL_SHA1}" > /dev/null 2>&1
-echo "-----> Verified"
-
-# 1) Startup
-echo "-----> Starting WildFly ${WILDFLY_VERSION} ..."
-${JBOSS_HOME}/bin/standalone.sh --admin-only | indent &
-
-# Wait until the server has started
-until ${JBOSS_CLI} --connect --command=":read-attribute(name=server-state)" 2> /dev/null | grep -q "running"; do
-	sleep 1
-done
-
-# 2) Create PostgreSQL module
-echo "-----> Creating PostgreSQL Driver module ..."
-MODULE_NAME="org.postgresql"
-${JBOSS_CLI} --connect --command="module add --name=${MODULE_NAME} --resources=${POSTGRESQL_DRIVER_LOCATION} --dependencies=javax.api,javax.transaction.api" | indent
-
-rm "${POSTGRESQL_DRIVER_LOCATION}"
-
-# 3) Install driver
-echo "-----> Installing PostgreSQL JDBC Driver ${POSTGRESQL_DRIVER_VERSION} ..."
-DRIVER_NAME="postgresql"
-${JBOSS_CLI} --connect --command="/subsystem=datasources/jdbc-driver=postgresql:add(driver-name=${DRIVER_NAME},driver-module-name=org.postgresql,driver-xa-datasource-class-name=org.postgresql.xa.PGXADataSource)" | indent
-
-echo "-----> Creating PostgreSQL Datasource"
-PERSISTENCE_XML="${PERSISTENCE_XML:-${BUILD_DIR}/src/main/resources/META-INF/persistence.xml}"
-if [ -f "${PERSISTENCE_XML}" ]; then
-    DATASOURCE_JNDI_NAME="$(grep -Eo "<jta-data-source>[A-Za-z0-9/:-]+</jta-data-source>" "${PERSISTENCE_XML}" | sed -E "s,^<jta-data-source>|</jta-data-source>$,,g")"
-    PERSISTENCE_UNIT_NAME="$(grep -Eo "<persistence-unit .+>" "${PERSISTENCE_XML}" | grep -Eo 'name="[^"]+"' | sed -E 's/^[^"]+"|"$//g')"
-    DATASOURCE_NAME="${PERSISTENCE_UNIT_NAME}DS"
-    echo "-----> Found Datasource Definition in persistence.xml"
-    echo "       Using Datasource name ${DATASOURCE_NAME}"
-    echo "       Using JNDI name ${DATASOURCE_JNDI_NAME}"
-else
-    echo "-----> persistence.xml not found "
-fi
-
-DATASOURCE_JNDI_NAME="${DATASOURCE_JNDI_NAME:-java:jboss/datasources/appDS}"
-DATASOURCE_NAME="${DATASOURCE_NAME:-appDS}"
-
-${JBOSS_CLI} --connect --command="data-source add
-        --name=${DATASOURCE_NAME}
-        --jndi-name=${DATASOURCE_JNDI_NAME}
-        --user-name=\${env.JDBC_DATABASE_USERNAME}
-        --password=\${env.JDBC_DATABASE_PASSWORD}
-        --driver-name=${DRIVER_NAME}
-        --connection-url=\${env.JDBC_DATABASE_URL}
-        --max-pool-size=25
-        --blocking-timeout-wait-millis=5000
-        --enabled=true
-        --jta=true
-        --use-ccm=false
-        --valid-connection-checker-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLValidConnectionChecker
-        --background-validation=true
-        --exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLExceptionSorter" | indent
-
-# 4) Change Hibernate dialect to PostgreSQL dialect
-function updateHibernateDialect() {
-    local war_file="$1"
-    local persistence_file="$2"
-    local dialect="$3"
-
-    # Verify that the given war file exists and that it
-    # contains the persistence.xml
-    if [ -f "${war_file}" ] && unzip -l -q "${war_file}" "${persistence_file}" >/dev/null; then
-        # Extract the persistence.xml to a temporary directory
-        local war_basename="${war_file##*/}"
-        local extraction_directory="$(mktemp -d "/tmp/${war_basename%.war}.XXXXXX")"
-        unzip -d "${extraction_directory}" "${war_file}" "${persistence_file}" >/dev/null
-
-        # Replace Hibernate dialect to passed one
-        sed -Ei "s/org\.hibernate\.dialect\.[A-Za-z0-9]+Dialect/${dialect////\\/}/" "${extraction_directory}/${persistence_file}"
-
-        # Copy the WAR file to the extraction directory
-        cp -f "${war_file}" "${extraction_directory}"
-
-        # Patch the copied WAR file inside the temporary directory
-        # with the updated persistence.xml
-        (cd "${extraction_directory}" && zip --update "${war_basename}" "${persistence_file}" >/dev/null)
-
-        # Move the WAR file back to its original path
-        # overwriting the original file
-        mv -f "${extraction_directory}/${war_basename}" "${war_file}"
-
-        # Delete the temporary extraction directory
-        rm -rf "${extraction_directory}"
-    fi
-}
-
-if [ -f "${PERSISTENCE_XML}" ]; then
-    PERSISTENCE_XML_WAR_PATH="WEB-INF/classes/META-INF/persistence.xml"
-    TARGET_DIALECT="org.hibernate.dialect.PostgreSQL95Dialect"
-    if grep -Eq '<property [[:blank:]]*name="hibernate\.dialect"' "${PERSISTENCE_XML}"; then
-        echo "-----> Hibernate JPA detected, changing Hibernate dialect to PostgreSQL"
-        for war in "${JBOSS_HOME}/standalone/deployments"/*.war; do
-            updateHibernateDialect "${war}" "${PERSISTENCE_XML_WAR_PATH}" "${TARGET_DIALECT}"
-            printf "       Updated dialect for deployment '%s' to %s\n" "${war##*/}" "${TARGET_DIALECT}"
-        done
-    fi
-fi
-
-# 5) Shutdown  WildFly
-echo "-----> Shutting down WildFly ..."
-${JBOSS_CLI} --connect --command=":shutdown" | indent
-
-echo "-----> Done"
+install_postgresql_driver "${BUILD_DIR}" "${CACHE_DIR}"
+install_postgresql_datasource "${BUILD_DIR}"
