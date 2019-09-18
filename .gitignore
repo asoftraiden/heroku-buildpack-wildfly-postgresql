@@ -41,6 +41,9 @@ hs_err_pid*
 *.ipr
 .idea/
 
+# Visual Studio Code
+.vscode/
+
 # Mac OS X
 .DS_Store
 
