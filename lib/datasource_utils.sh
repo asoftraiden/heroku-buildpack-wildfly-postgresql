@@ -12,6 +12,19 @@ DEFAULT_DATASOURCE_CONNECTION_URL="\${env.JDBC_DATABASE_URL}"
 DEFAULT_DATASOURCE_USERNAME="\${env.JDBC_DATABASE_USERNAME}"
 DEFAULT_DATASOURCE_PASSWORD="\${env.JDBC_DATABASE_PASSWORD}"
 
+_load_heroku_wildfly_buildpack() {
+    local herokuWildflyBuildpackUrl="https://github.com/mortenterhart/heroku-buildpack-wildfly.git"
+    local herokuWildflyBuildpackDir="/tmp/heroku-wildfly-buildpack"
+
+    if [ ! -d "${herokuWildflyBuildpackDir}" ]; then
+        git clone --quiet "${herokuWildflyBuildpackUrl}" "${herokuWildflyBuildpackDir}"
+    fi
+
+    source "${herokuWildflyBuildpackDir}/lib/wildfly_utils.sh"
+}
+
+_load_heroku_wildfly_buildpack
+
 install_postgresql_driver() {
     local buildDir="$1"
     local cacheDir="$2"
@@ -40,7 +53,7 @@ install_postgresql_driver() {
     _create_postgresql_driver_module "${moduleName}" "${cacheDir}/${postgresqlDriverJar}"
     _install_postgresql_jdbc_driver "${moduleName}"
 
-    _create_profile_script "${buildDir}"
+    _create_postgresql_profile_script "${buildDir}"
 }
 
 _create_postgresql_driver_module() {
@@ -392,12 +405,12 @@ _get_datasource_jndi_name() {
     fi
 }
 
-_create_profile_script() {
+_create_postgresql_profile_script() {
     local buildDir="$1"
-    local profileScript="${buildDir}/.profile.d/postgresql-driver.sh"
+    local profileScript="${buildDir}/.profile.d/postgresql-.sh"
 
     if [ -d "${buildDir}/.profile.d" ]; then
-        status_pending "Creating .profile.d script for environment variables"
+        status_pending "Creating .profile.d script for PostgreSQL environment variables"
         cat > "${profileScript}" <<SCRIPT
 # Environment variables for the PostgreSQL Datasource
 export POSTGRESQL_DRIVER_VERSION="${POSTGRESQL_DRIVER_VERSION}"
@@ -454,16 +467,3 @@ This setting overrides the location set by this buildpack."
     # Config variable CUSTOM_WAR_PERSISTENCE_XML_PATH
     export WAR_PERSISTENCE_XML_PATH="${WAR_PERSISTENCE_XML_CUSTOM_PATH:-${DEFAULT_WAR_PERSISTENCE_XML_PATH}}"
 }
-
-_load_heroku_wildfly_buildpack() {
-    local herokuWildflyBuildpackUrl="https://github.com/mortenterhart/heroku-buildpack-wildfly.git"
-    local herokuWildflyBuildpackDir="/tmp/heroku-wildfly-buildpack"
-
-    if [ ! -d "${herokuWildflyBuildpackDir}" ]; then
-        git clone --quiet "${herokuWildflyBuildpackUrl}" "${herokuWildflyBuildpackDir}"
-    fi
-
-    source "${herokuWildflyBuildpackDir}/lib/wildfly_utils.sh"
-}
-
-_load_heroku_wildfly_buildpack
