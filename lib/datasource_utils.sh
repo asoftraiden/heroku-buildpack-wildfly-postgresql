@@ -439,8 +439,8 @@ _create_postgresql_datasource_profile_script() {
         status_pending "Creating .profile.d script for PostgreSQL Datasource"
         cat >> "${profileScript}" <<SCRIPT
 # Environment variables for the PostgreSQL Datasource
-export POSTGRESQL_DATASOURCE_NAME="${POS}"
-export POSTGRESQL_DATASOURCE_JNDI_NAME="${POS}"
+export POSTGRESQL_DATASOURCE_NAME="${POSTGRESQL_DATASOURCE_NAME}"
+export POSTGRESQL_DATASOURCE_JNDI_NAME="${POSTGRESQL_DATASOURCE_JNDI_NAME}"
 SCRIPT
         status_done
     fi
