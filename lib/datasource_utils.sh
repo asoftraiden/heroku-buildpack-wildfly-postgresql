@@ -23,6 +23,8 @@ _load_heroku_wildfly_buildpack() {
     source "${herokuWildflyBuildpackDir}/lib/wildfly_utils.sh"
 }
 
+# Load WildFly buildpack at the beginning to prevent overriding of equally
+# named functions defined here
 _load_heroku_wildfly_buildpack
 
 install_postgresql_driver() {
