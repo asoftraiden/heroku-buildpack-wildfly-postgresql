@@ -136,8 +136,6 @@ install_postgresql_datasource() {
     local datasourceJNDIName="${DATASOURCE_JNDI_NAME:-$(_get_datasource_jndi_name "${persistenceFile}")}"
     local datasourceName="${DATASOURCE_NAME:-${datasourceJNDIName##*/}}"
 
-    echo "Found JNDI Name '${datasourceJNDIName}' and datasource name '${datasourceName}'"
-
     if [ "${DISABLE_HIBERNATE_AUTO_UPDATE}" != "true" ] && \
        [ -f "${persistenceFile}" ]; then
         update_hibernate_dialect "${persistenceFile}" "${HIBERNATE_DIALECT:-${DEFAULT_HIBERNATE_DIALECT}}"
@@ -322,8 +320,16 @@ _execute_jboss_command() {
         return 1
     fi
 
+    # We need to use the 'true' command here since 'read' exits with 1
+    # if it doesn't find the delimiter which is usually '\n'. This is
+    # very important for scripts using 'set -e' like the buildpack's
+    # compile script so that they don't abort execution (see also
+    # https://stackoverflow.com/questions/15421331/reading-a-bash-variable-from-a-multiline-here-document).
+    #
+    # The delimiter is unset here so that 'read' obtains the complete
+    # input including all lines and sets it to the command variable.
     local command
-    read -r -d '' command
+    read -r -d '' command || true
 
     if ! _is_wildfly_running; then
         _start_wildfly_server
