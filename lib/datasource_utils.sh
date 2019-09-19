@@ -2,6 +2,7 @@
 #
 # shellcheck disable=SC1090,SC2155
 
+DEFAULT_POSTGRESQL_DRIVER_NAME="postgresql"
 DEFAULT_POSTGRESQL_DRIVER_VERSION="42.2.8"
 
 DEFAULT_WAR_PERSISTENCE_XML_PATH="WEB-INF/classes/META-INF/persistence.xml"
@@ -55,7 +56,10 @@ install_postgresql_driver() {
     _create_postgresql_driver_module "${moduleName}" "${cacheDir}/${postgresqlDriverJar}"
     _install_postgresql_jdbc_driver "${moduleName}"
 
-    _create_postgresql_profile_script "${buildDir}"
+    export POSTGRESQL_DRIVER_NAME="${POSTGRESQL_DRIVER_NAME:-${DEFAULT_POSTGRESQL_DRIVER_NAME}}"
+    export POSTGRESQL_DRIVER_VERSION="${postgresqlVersion}"
+
+    _create_postgresql_driver_profile_script "${buildDir}"
 }
 
 _create_postgresql_driver_module() {
@@ -73,7 +77,7 @@ COMMAND
 _install_postgresql_jdbc_driver() {
     local moduleName="$1"
 
-    export POSTGRESQL_DRIVER_NAME="${POSTGRESQL_DRIVER_NAME:-postgresql}"
+    export POSTGRESQL_DRIVER_NAME="${POSTGRESQL_DRIVER_NAME:-${DEFAULT_POSTGRESQL_DRIVER_NAME}}"
 
     _execute_jboss_command "Installing PostgreSQL JDBC Driver ${postgresqlVersion}" <<COMMAND
 /subsystem=datasources/jdbc-driver=postgresql:add(
@@ -176,6 +180,11 @@ data-source add
     --background-validation=true
     --exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLExceptionSorter
 COMMAND
+
+    export POSTGRESQL_DATASOURCE_NAME="${datasourceName}"
+    export POSTGRESQL_DATASOURCE_JNDI_NAME="${datasourceJNDIName}"
+
+    _create_postgresql_datasource_profile_script "${buildDir}"
 
     _shutdown_wildfly_server
 }
@@ -407,18 +416,31 @@ _get_datasource_jndi_name() {
     fi
 }
 
-_create_postgresql_profile_script() {
+_create_postgresql_driver_profile_script() {
     local buildDir="$1"
     local profileScript="${buildDir}/.profile.d/wildfly-postgresql.sh"
 
     if [ -d "${buildDir}/.profile.d" ]; then
-        status_pending "Creating .profile.d script for PostgreSQL environment variables"
-        cat > "${profileScript}" <<SCRIPT
-# Environment variables for the PostgreSQL Datasource
+        status_pending "Creating .profile.d script for PostgreSQL driver"
+        cat >> "${profileScript}" <<SCRIPT
+# Environment variables for the PostgreSQL Driver
 export POSTGRESQL_DRIVER_VERSION="${POSTGRESQL_DRIVER_VERSION}"
 export POSTGRESQL_DRIVER_NAME="${POSTGRESQL_DRIVER_NAME}"
-export POSTGRESQL_DATASOURCE_NAME="${POSTGRESQL_DATASOURCE_NAME}"
-export POSTGRESQL_DATASOURCE_JNDI_NAME="${POSTGRESQL_DATASOURCE_JNDI_NAME}"
+SCRIPT
+        status_done
+    fi
+}
+
+_create_postgresql_datasource_profile_script() {
+    local buildDir="$1"
+    local profileScript="${buildDir}/.profile.d/wildfly-postgresql.sh"
+
+    if [ -d "${buildDir}/.profile.d" ]; then
+        status_pending "Creating .profile.d script for PostgreSQL Datasource"
+        cat >> "${profileScript}" <<SCRIPT
+# Environment variables for the PostgreSQL Datasource
+export POSTGRESQL_DATASOURCE_NAME="${POS}"
+export POSTGRESQL_DATASOURCE_JNDI_NAME="${POS}"
 SCRIPT
         status_done
     fi
