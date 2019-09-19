@@ -183,6 +183,11 @@ _extract_persistence_file_from_war() {
     local persistenceFilePath="$2"
     local targetDir="$3"
 
+    echo "Extracting persistence.xml"
+    echo "warFile: $warFile"
+    echo "persistenceFilePath: $persistenceFilePath"
+    echo "targetDir: $targetDir"
+
     if _war_file_contains_file "${warFile}" "${persistenceFilePath}"; then
         unzip -d "${targetDir}" -q "${warFile}" "${persistenceFilePath}"
         echo "${targetDir}/${persistenceFilePath}"
