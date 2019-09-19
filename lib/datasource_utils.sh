@@ -409,7 +409,7 @@ _get_datasource_jndi_name() {
 
 _create_postgresql_profile_script() {
     local buildDir="$1"
-    local profileScript="${buildDir}/.profile.d/postgresql-.sh"
+    local profileScript="${buildDir}/.profile.d/wildfly-postgresql.sh"
 
     if [ -d "${buildDir}/.profile.d" ]; then
         status_pending "Creating .profile.d script for PostgreSQL environment variables"
