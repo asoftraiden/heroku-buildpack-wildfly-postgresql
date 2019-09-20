@@ -32,11 +32,11 @@ install_postgresql_driver() {
     local buildDir="$1"
     local cacheDir="$2"
     if [ ! -d "${buildDir}" ]; then
-        error_return "Could not install PostgreSQL Driver: Build directory does not exist"
+        error_return "Could not install PostgreSQL Driver: Build directory does not exist: ${buildDir}"
         return 1
     fi
     if [ ! -d "${cacheDir}" ]; then
-        error_return "Could not install PostgreSQL Driver: Cache directory does not exist"
+        error_return "Could not install PostgreSQL Driver: Cache directory does not exist: ${cacheDir}"
         return 1
     fi
 
@@ -52,9 +52,12 @@ install_postgresql_driver() {
 
     _load_wildfly_environment_variables "${buildDir}"
 
+    _check_errexit_set
+    _shutdown_on_error
+
     local moduleName="org.postgresql"
     _create_postgresql_driver_module "${moduleName}" "${cacheDir}/${postgresqlDriverJar}"
-    _install_postgresql_jdbc_driver "${moduleName}"
+    _install_postgresql_jdbc_driver "${moduleName}" "${postgresqlVersion}"
 
     export POSTGRESQL_DRIVER_NAME="${POSTGRESQL_DRIVER_NAME:-${DEFAULT_POSTGRESQL_DRIVER_NAME}}"
     export POSTGRESQL_DRIVER_VERSION="${postgresqlVersion}"
@@ -66,7 +69,7 @@ _create_postgresql_driver_module() {
     local moduleName="$1"
     local postgresqlDriverPath="$2"
 
-    _execute_jboss_command "Creating PostgreSQL Driver module" <<COMMAND
+    _execute_jboss_command "Creating PostgreSQL Driver module '${moduleName}'" <<COMMAND
 module add
     --name=${moduleName}
     --resources=${postgresqlDriverPath}
@@ -76,6 +79,7 @@ COMMAND
 
 _install_postgresql_jdbc_driver() {
     local moduleName="$1"
+    local postgresqlVersion="$2"
 
     export POSTGRESQL_DRIVER_NAME="${POSTGRESQL_DRIVER_NAME:-${DEFAULT_POSTGRESQL_DRIVER_NAME}}"
 
@@ -113,7 +117,7 @@ detect_postgresql_driver_version() {
     local buildDir="$1"
 
     if [ ! -d "${buildDir}" ]; then
-        error_return "Could not detect PostgreSQL Driver version: Build directory does not exist" >&2
+        error_return "Could not detect PostgreSQL Driver version: Build directory does not exist: ${buildDir}"
         return 1
     fi
 
@@ -138,7 +142,7 @@ install_postgresql_datasource() {
 
     local buildDir="$1"
     if [ ! -d "${buildDir}" ]; then
-        error_return "Could not install PostgreSQL Datasource: Build directory does not exist"
+        error_return "Could not install PostgreSQL Datasource: Build directory does not exist: ${buildDir}"
         return 1
     fi
 
@@ -148,22 +152,48 @@ install_postgresql_datasource() {
 
     _load_wildfly_environment_variables "${buildDir}"
 
-    local warFile="$(_find_war_with_persistence_file "${WAR_PERSISTENCE_XML_PATH}")"
-    local deploymentsTempDir="$(mktemp -d "/tmp/deployments.XXXXXX")"
-    local persistenceFile="$(_extract_persistence_file_from_war "${warFile}" "${WAR_PERSISTENCE_XML_PATH}" "${deploymentsTempDir}")"
-
-    local datasourceJNDIName="${DATASOURCE_JNDI_NAME:-$(_get_datasource_jndi_name "${persistenceFile}")}"
-    local datasourceName="${DATASOURCE_NAME:-${datasourceJNDIName##*/}}"
-
-    if [ "${DISABLE_HIBERNATE_AUTO_UPDATE}" != "true" ] && \
-       [ -f "${persistenceFile}" ]; then
-        update_hibernate_dialect "${persistenceFile}" "${HIBERNATE_DIALECT:-${DEFAULT_HIBERNATE_DIALECT}}"
-        _update_file_in_war "${warFile}" "${deploymentsTempDir}" "${WAR_PERSISTENCE_XML_PATH}"
-    fi
-
-    rm -rf "${deploymentsTempDir}"
+    _check_errexit_set
+    _shutdown_on_error
 
     _verify_postgresql_driver_installation
+
+    local warFile="$(_find_war_with_persistence_file "${WAR_PERSISTENCE_XML_PATH}")"
+
+    local datasourceJNDIName="${DATASOURCE_JNDI_NAME:-${DEFAULT_DATASOURCE_JNDI_NAME}}"
+    local datasourceName="${DATASOURCE_NAME:-${DEFAULT_DATASOURCE_JNDI_NAME##*/}}"
+
+    if [ -n "${warFile}" ] && [ -f "${warFile}" ]; then
+        status "Found Persistence Unit in persistence.xml of deployment '${warFile##*/}'"
+
+        local deploymentsTempDir="$(mktemp -d "/tmp/deployments.XXXXXX")"
+        local persistenceFile="$(_extract_persistence_file_from_war "${warFile}" "${WAR_PERSISTENCE_XML_PATH}" "${deploymentsTempDir}")"
+
+        datasourceJNDIName="${DATASOURCE_JNDI_NAME:-$(_get_datasource_jndi_name "${persistenceFile}")}"
+        datasourceName="${DATASOURCE_NAME:-${datasourceJNDIName##*/}}"
+
+        if [ "${DISABLE_HIBERNATE_AUTO_UPDATE}" != "true" ] && \
+           [ -f "${persistenceFile}" ]; then
+            update_hibernate_dialect "${persistenceFile}" "${HIBERNATE_DIALECT:-${DEFAULT_HIBERNATE_DIALECT}}"
+            _update_file_in_war "${warFile}" "${deploymentsTempDir}" "${WAR_PERSISTENCE_XML_PATH}"
+        fi
+
+        rm -rf "${deploymentsTempDir}"
+    else
+        warning "No Persistence Unit found in any WAR file. Database connections will not be possible.
+
+The buildpack looks for a persistence.xml definition at the path
+${WAR_PERSISTENCE_XML_PATH} in all deployed WAR files.
+The path can be altered by setting the WAR_PERSISTENCE_XML_PATH
+config var which overrides the default value:
+
+  heroku config:set WAR_PERSISTENCE_XML_PATH=path/in/war
+
+Ensure that your path is relative to the root of the WAR archive."
+    fi
+
+    notice "Using following parameters for datasource
+  Datasource Name: ${datasourceName}
+  Datasource JNDI Name: ${datasourceJNDIName}"
 
     _execute_jboss_command "Creating PostgreSQL Datasource" <<COMMAND
 data-source add
@@ -245,11 +275,6 @@ _extract_persistence_file_from_war() {
     local persistenceFilePath="$2"
     local targetDir="$3"
 
-    echo "Extracting persistence.xml"
-    echo "warFile: $warFile"
-    echo "persistenceFilePath: $persistenceFilePath"
-    echo "targetDir: $targetDir"
-
     if _war_file_contains_file "${warFile}" "${persistenceFilePath}"; then
         unzip -d "${targetDir}" -q "${warFile}" "${persistenceFilePath}"
         echo "${targetDir}/${persistenceFilePath}"
@@ -259,6 +284,10 @@ _extract_persistence_file_from_war() {
 _war_file_contains_file() {
     local zipFile="$1"
     local file="$2"
+
+    if [ ! -f "${zipFile}" ]; then
+        return 1
+    fi
 
     unzip -q -l "${zipFile}" "${file}" >/dev/null
 }
@@ -272,11 +301,13 @@ update_hibernate_dialect() {
         return 1
     fi
 
-    if ! validate_hibernate_dialect "${dialect}"; then
-        return 1
-    fi
-
     if grep -Eq '<property [[:blank:]]*name="hibernate\.dialect"' "${persistenceFile}"; then
+        if ! validate_hibernate_dialect "${dialect}"; then
+            return 1
+        fi
+
+        status "Hibernate JPA detected: Changing Hibernate dialect to '${dialect}'"
+
         sed -Ei "s#org\.hibernate\.dialect\.[A-Za-z0-9]+Dialect#${dialect}#" "${persistenceFile}"
     fi
 }
@@ -299,6 +330,8 @@ _update_file_in_war() {
     if _is_relative_path "${warFile}"; then
         warFile="$(_resolve_absolute_path "${warFile}")"
     fi
+
+    status "Patching '${warFile##*/}' with updated persistence.xml"
 
     (cd "${rootPath}" && zip -q --update "${warFile}" "${relativeFile}")
 }
@@ -408,12 +441,18 @@ _execute_jboss_command() {
     [ -n "${statusMessage}" ] && status "${statusMessage}..."
 
     "${JBOSS_CLI}" --connect --command="${command}" | indent
-    return "${PIPESTATUS[0]}"
+    local exitStatus="${PIPESTATUS[0]}"
+
+    if [ "${exitStatus}" -ne 0 ]; then
+        error_return "JBoss command failed with exit code ${exitStatus}"
+    fi
+
+    return "${exitStatus}"
 }
 
 _execute_jboss_command_pipable() {
     if [ -t 0 ]; then
-        error_return ""
+        error_return "JBoss command on stdin expected. Use a heredoc to specify it."
         return 1
     fi
 
@@ -421,6 +460,13 @@ _execute_jboss_command_pipable() {
     read -r -d '' command || true
 
     "${JBOSS_CLI}" --connect --command="${command}"
+    local exitStatus="$?"
+
+    if [ "${exitStatus}" -ne 0 ]; then
+        error_return "JBoss command failed with exit code ${exitStatus}" >&2
+    fi
+
+    return "${exitStatus}"
 }
 
 _start_wildfly_server() {
@@ -441,7 +487,11 @@ _is_wildfly_running() {
 
 _shutdown_wildfly_server() {
     status "Shutdown WildFly server"
-    "${JBOSS_CLI}" --connect --command=":shutdown" | indent
+    "${JBOSS_CLI}" --connect --command=":shutdown" | indent && echo
+}
+
+_shutdown_on_error() {
+    trap '_shutdown_wildfly_server; exit 1' ERR
 }
 
 _get_postgresql_driver_url() {
@@ -466,6 +516,16 @@ _get_datasource_jndi_name() {
         fi
     else
         echo "${DEFAULT_DATASOURCE_JNDI_NAME}"
+    fi
+}
+
+_check_errexit_set() {
+    if ! shopt -qo "errexit"; then
+        warning "'errexit' option not set
+
+You should use 'set -e' in your script as this buildpack relies
+on error handling by exit status. Without it the build continues
+on errors and may cause undesired results."
     fi
 }
 
@@ -541,6 +601,6 @@ This setting overrides the location set by this buildpack."
         return 1
     fi
 
-    # Config variable CUSTOM_WAR_PERSISTENCE_XML_PATH
-    export WAR_PERSISTENCE_XML_PATH="${WAR_PERSISTENCE_XML_CUSTOM_PATH:-${DEFAULT_WAR_PERSISTENCE_XML_PATH}}"
+    # Config variable WAR_PERSISTENCE_XML_PATH
+    export WAR_PERSISTENCE_XML_PATH="${WAR_PERSISTENCE_XML_PATH:-${DEFAULT_WAR_PERSISTENCE_XML_PATH}}"
 }
