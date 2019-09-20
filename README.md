@@ -42,7 +42,7 @@ source /tmp/heroku-buildpack-wildfly-postgresql/lib/datasource_utils.sh
 | `DATASOURCE_NAME`  | `appDS` | The name of the PostgreSQL datasource |
 | `DATASOURCE_JNDI_NAME` | `java:jboss/datasources/appDS` | The JNDI name of the persistence unit defined in `persistence.xml`. Overrides the value automatically read from `persistence.xml`. |
 | `ONLY_INSTALL_DRIVER` | `false` | When set to `true` this buildpack will only install the driver and not create the datasource for WildFly. |
-| `CUSTOM_WAR_PERSISTENCE_XML_PATH` | unset |  |
+| `WAR_PERSISTENCE_XML_PATH` | unset |  |
 | `JBOSS_HOME` | automatically set | The path to the WildFly home directory |
 | `HIBERNATE_DIALECT` | `org.hibernate.dialect.PostgreSQL95Dialect` | The Hibernate dialect that is automatically updated |
 | `DISABLE_HIBERNATE_AUTO_UPDATE` | `false` | When set to `true` the auto update for the Hibernate dialect in the `persistence.xml` is disabled. |
