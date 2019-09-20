@@ -278,6 +278,7 @@ _extract_persistence_file_from_war() {
     if _war_file_contains_file "${warFile}" "${persistenceFilePath}"; then
         set -x
         unzip -d "${targetDir}" -q "${warFile}" "${persistenceFilePath}"
+        echo "Exit code: $?"
         echo "${targetDir}/${persistenceFilePath}"
     fi
 }
