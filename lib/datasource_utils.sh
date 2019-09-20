@@ -9,9 +9,9 @@ DEFAULT_WAR_PERSISTENCE_XML_PATH="WEB-INF/classes/META-INF/persistence.xml"
 DEFAULT_HIBERNATE_DIALECT="org.hibernate.dialect.PostgreSQL95Dialect"
 
 DEFAULT_DATASOURCE_JNDI_NAME="java:jboss/datasources/appDS"
-DEFAULT_DATASOURCE_CONNECTION_URL="\${env.JDBC_DATABASE_URL}"
-DEFAULT_DATASOURCE_USERNAME="\${env.JDBC_DATABASE_USERNAME}"
-DEFAULT_DATASOURCE_PASSWORD="\${env.JDBC_DATABASE_PASSWORD}"
+DEFAULT_DATASOURCE_CONNECTION_URL="\${env.JDBC_DATABASE_URL:}"
+DEFAULT_DATASOURCE_USERNAME="\${env.JDBC_DATABASE_USERNAME:}"
+DEFAULT_DATASOURCE_PASSWORD="\${env.JDBC_DATABASE_PASSWORD:}"
 
 _load_heroku_wildfly_buildpack() {
     local herokuWildflyBuildpackUrl="https://github.com/mortenterhart/heroku-buildpack-wildfly.git"
@@ -163,6 +163,8 @@ install_postgresql_datasource() {
 
     rm -rf "${deploymentsTempDir}"
 
+    _verify_postgresql_driver_installation
+
     _execute_jboss_command "Creating PostgreSQL Datasource" <<COMMAND
 data-source add
     --name=${datasourceName}
@@ -187,6 +189,42 @@ COMMAND
     _create_postgresql_datasource_profile_script "${buildDir}"
 
     _shutdown_wildfly_server
+}
+
+_verify_postgresql_driver_installation() {
+    if ! _is_wildfly_running; then
+        _start_wildfly_server
+        _wait_until_wildfly_running
+    fi
+
+    status "Verifying PostgreSQL driver installation"
+
+    if [ -z "${POSTGRESQL_DRIVER_NAME}" ]; then
+        error_return "PostgreSQL driver name is not set
+
+The PostgreSQL datasource depends on an existing driver installation.
+Please ensure you have the PostgreSQL driver installed. You can also
+manually set the name of the driver using the POSTGRESQL_DRIVER_NAME
+config var."
+        return 1
+    fi
+
+    local tty="$(tty)"
+    _execute_jboss_command_pipable <<COMMAND | tee >(indent > "${tty}") |
+/subsystem=datasources/jdbc-driver=postgresql:read-attribute(
+    name=driver-name
+)
+COMMAND
+    grep -q "\"result\" => \"${POSTGRESQL_DRIVER_NAME}\"" || {
+        error_return "PostgreSQL driver is not installed: ${POSTGRESQL_DRIVER_NAME}
+
+The configured driver '${POSTGRESQL_DRIVER_NAME}' is not installed
+at the WildFly server. Ensure the PostgreSQL driver is correctly
+installed before installing the datasource and that you are using
+the correct driver name. You can also manually set the driver name
+with the POSTGRESQL_DRIVER_NAME config var."
+        return 1
+    }
 }
 
 _find_war_with_persistence_file() {
@@ -341,6 +379,8 @@ the default version ${DEFAULT_POSTGRESQL_DRIVER_VERSION}."
     fi
 }
 
+# Do not pipe the output of this command as it might start a background
+# process to start the WildFly server.
 _execute_jboss_command() {
     local statusMessage="$1"
 
@@ -363,12 +403,24 @@ _execute_jboss_command() {
     if ! _is_wildfly_running; then
         _start_wildfly_server
         _wait_until_wildfly_running
-        status "WildFly is running"
     fi
 
     [ -n "${statusMessage}" ] && status "${statusMessage}..."
 
     "${JBOSS_CLI}" --connect --command="${command}" | indent
+    return "${PIPESTATUS[0]}"
+}
+
+_execute_jboss_command_pipable() {
+    if [ -t 0 ]; then
+        error_return ""
+        return 1
+    fi
+
+    local command
+    read -r -d '' command || true
+
+    "${JBOSS_CLI}" --connect --command="${command}"
 }
 
 _start_wildfly_server() {
@@ -380,6 +432,7 @@ _wait_until_wildfly_running() {
     until _is_wildfly_running; do
         sleep 1
     done
+    status "WildFly is running"
 }
 
 _is_wildfly_running() {
