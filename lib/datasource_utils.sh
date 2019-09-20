@@ -276,6 +276,7 @@ _extract_persistence_file_from_war() {
     local targetDir="$3"
 
     if _war_file_contains_file "${warFile}" "${persistenceFilePath}"; then
+        set -x
         unzip -d "${targetDir}" -q "${warFile}" "${persistenceFilePath}"
         echo "${targetDir}/${persistenceFilePath}"
     fi
