@@ -197,7 +197,8 @@ Ensure that your path is relative to the root of the WAR archive."
 
     notice "Using following parameters for datasource
   Datasource Name: ${datasourceName}
-  Datasource JNDI Name: ${datasourceJNDIName}"
+  Datasource JNDI Name: ${datasourceJNDIName}
+  PostgreSQL Driver Name: ${POSTGRESQL_DRIVER_NAME}"
 
     _execute_jboss_command "Creating PostgreSQL Datasource" <<COMMAND
 data-source add
@@ -295,11 +296,11 @@ update_hibernate_dialect() {
     fi
 
     if grep -Eq '<property [[:blank:]]*name="hibernate\.dialect"' "${persistenceFile}"; then
+        status "Hibernate JPA detected: Changing Hibernate dialect to '${dialect}'"
+
         if ! validate_hibernate_dialect "${dialect}"; then
             return 1
         fi
-
-        status "Hibernate JPA detected: Changing Hibernate dialect to '${dialect}'"
 
         sed -Ei "s#org\.hibernate\.dialect\.[A-Za-z0-9]+Dialect#${dialect}#" "${persistenceFile}"
     fi
