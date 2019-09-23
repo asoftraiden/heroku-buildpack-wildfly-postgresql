@@ -22,7 +22,6 @@ source "${HEROKU_WILDFLY_BUILDPACK_DIR}/lib/wildfly_utils.sh"
 
 source "${BP_DIR}/lib/datasource_utils.sh"
 source "${BP_DIR}/lib/environment.sh"
-source "${BP_DIR}/lib/persistence_utils.sh"
 
 export_env_dir "${ENV_DIR}"
 
