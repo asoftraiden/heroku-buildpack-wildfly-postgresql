@@ -8,6 +8,8 @@ DEFAULT_POSTGRESQL_DRIVER_VERSION="42.2.8"
 DEFAULT_WAR_PERSISTENCE_XML_PATH="WEB-INF/classes/META-INF/persistence.xml"
 DEFAULT_HIBERNATE_DIALECT="org.hibernate.dialect.PostgreSQL95Dialect"
 
+# By default, read connection URL, username and password from environment
+# variables provided by the Heroku Postgres Add-on
 DEFAULT_DATASOURCE_JNDI_NAME="java:jboss/datasources/appDS"
 DEFAULT_DATASOURCE_CONNECTION_URL="\${env.JDBC_DATABASE_URL:}"
 DEFAULT_DATASOURCE_USERNAME="\${env.JDBC_DATABASE_USERNAME:}"
@@ -142,7 +144,7 @@ install_postgresql_datasource() {
 
     local buildDir="$1"
     if [ ! -d "${buildDir}" ]; then
-        error_return "Could not install PostgreSQL Datasource: Build directory does not exist: ${buildDir}"
+        error_return "Failed to install PostgreSQL Datasource: Build directory does not exist: ${buildDir}"
         return 1
     fi
 
@@ -160,37 +162,37 @@ install_postgresql_datasource() {
     local datasourceJNDIName="${DATASOURCE_JNDI_NAME:-${DEFAULT_DATASOURCE_JNDI_NAME}}"
     local datasourceName="${DATASOURCE_NAME:-${DEFAULT_DATASOURCE_JNDI_NAME##*/}}"
 
-    local warFile="$(_find_war_with_persistence_unit "${WAR_PERSISTENCE_XML_PATH}")"
+    if [ -z "${DATASOURCE_JNDI_NAME}" ] || [ -z "${DATASOURCE_NAME}" ]; then
+        local warFile="$(_find_war_with_persistence_unit "${WAR_PERSISTENCE_XML_PATH}")"
 
-    if [ -n "${warFile}" ] && [ -f "${warFile}" ]; then
-        status "Found Persistence Unit in persistence.xml of deployment '${warFile##*/}'"
+        if [ -n "${warFile}" ] && [ -f "${warFile}" ]; then
+            status "Found Persistence Unit in persistence.xml of deployment '${warFile##*/}'"
+            local deploymentsTempDir="$(mktemp -d "/tmp/deployments.XXXXXX")"
 
-        local deploymentsTempDir="$(mktemp -d "/tmp/deployments.XXXXXX")"
-        unzip -d "${deploymentsTempDir}" -q "${warFile}" "${WAR_PERSISTENCE_XML_PATH}"
-        local persistenceFile="${deploymentsTempDir}/${WAR_PERSISTENCE_XML_PATH}"
-        #local persistenceFile="$(_extract_persistence_file_from_war "${warFile}" "${WAR_PERSISTENCE_XML_PATH}" "${deploymentsTempDir}")"
+            unzip -d "${deploymentsTempDir}" -q "${warFile}" "${WAR_PERSISTENCE_XML_PATH}"
+            local persistenceFile="${deploymentsTempDir}/${WAR_PERSISTENCE_XML_PATH}"
 
-        datasourceJNDIName="${DATASOURCE_JNDI_NAME:-$(_get_datasource_jndi_name "${persistenceFile}")}"
-        datasourceName="${DATASOURCE_NAME:-${datasourceJNDIName##*/}}"
+            datasourceJNDIName="${DATASOURCE_JNDI_NAME:-$(_get_datasource_jndi_name "${persistenceFile}")}"
+            datasourceName="${DATASOURCE_NAME:-${datasourceJNDIName##*/}}"
 
-        if [ "${DISABLE_HIBERNATE_AUTO_UPDATE}" != "true" ] && \
-           [ -f "${persistenceFile}" ]; then
-            update_hibernate_dialect "${persistenceFile}" "${HIBERNATE_DIALECT:-${DEFAULT_HIBERNATE_DIALECT}}"
-            _update_file_in_war "${warFile}" "${deploymentsTempDir}" "${WAR_PERSISTENCE_XML_PATH}"
-        fi
+            if [ "${DISABLE_HIBERNATE_DIALECT}" != "true" ] && [ -f "${persistenceFile}" ]; then
+                update_hibernate_dialect "${persistenceFile}" "${HIBERNATE_DIALECT:-${DEFAULT_HIBERNATE_DIALECT}}"
+                update_file_in_war "${warFile}" "${deploymentsTempDir}" "${WAR_PERSISTENCE_XML_PATH}"
+            fi
 
-        rm -rf "${deploymentsTempDir}"
-    else
-        warning "No Persistence Unit found in any WAR file. Database connections will not be possible.
+            rm -rf "${deploymentsTempDir}"
+        else
+            warning "No Persistence Unit found in any WAR file. Database connections will not be possible.
 
 The buildpack looks for a persistence.xml definition at the path
-${WAR_PERSISTENCE_XML_PATH} in all deployed WAR files.
+'${WAR_PERSISTENCE_XML_PATH}' in all deployed WAR files.
 The path can be altered by setting the WAR_PERSISTENCE_XML_PATH
 config var which overrides the default value:
 
   heroku config:set WAR_PERSISTENCE_XML_PATH=path/in/war
 
 Ensure that your path is relative to the root of the WAR archive."
+        fi
     fi
 
     notice "Using following parameters for datasource
@@ -272,17 +274,6 @@ _find_war_with_persistence_unit() {
     done
 }
 
-_extract_persistence_file_from_war() {
-    local warFile="$1"
-    local persistenceFilePath="$2"
-    local targetDir="$3"
-
-    if _war_file_contains_file "${warFile}" "${persistenceFilePath}"; then
-        unzip -d "${targetDir}" -q "${warFile}" "${persistenceFilePath}"
-        echo "${targetDir}/${persistenceFilePath}"
-    fi
-}
-
 _war_file_contains_file() {
     local zipFile="$1"
     local file="$2"
@@ -299,7 +290,7 @@ update_hibernate_dialect() {
     local dialect="$2"
 
     if [ ! -f "${persistenceFile}" ]; then
-        error_return "Passed persistence.xml file does not exist"
+        error_return "Passed persistence.xml file does not exist: ${persistenceFile}"
         return 1
     fi
 
@@ -314,18 +305,18 @@ update_hibernate_dialect() {
     fi
 }
 
-_update_file_in_war() {
+update_file_in_war() {
     local warFile="$1"
     local rootPath="$2"
     local relativeFile="$3"
 
     if [ ! -d "${rootPath}" ]; then
-        error_return "Root path needs to be a directory"
+        error_return "Root path needs to be a directory: ${rootPath}"
         return 1
     fi
 
     if [ ! -f "${rootPath}/${relativeFile}" ]; then
-        error_return "Relative file does not exist under root path"
+        error_return "Relative file does not exist under root path: ${relativeFile}"
         return 1
     fi
 
