@@ -34,11 +34,11 @@ install_postgresql_driver() {
     local buildDir="$1"
     local cacheDir="$2"
     if [ ! -d "${buildDir}" ]; then
-        error_return "Could not install PostgreSQL Driver: Build directory does not exist: ${buildDir}"
+        error_return "Failed to install PostgreSQL Driver: Build directory does not exist: ${buildDir}"
         return 1
     fi
     if [ ! -d "${cacheDir}" ]; then
-        error_return "Could not install PostgreSQL Driver: Cache directory does not exist: ${cacheDir}"
+        error_return "Failed to install PostgreSQL Driver: Cache directory does not exist: ${cacheDir}"
         return 1
     fi
 
@@ -480,8 +480,10 @@ _is_wildfly_running() {
 }
 
 _shutdown_wildfly_server() {
-    status "Shutdown WildFly server"
-    "${JBOSS_CLI}" --connect --command=":shutdown" | indent && echo
+    if _is_wildfly_running; then
+        status "Shutdown WildFly server"
+        "${JBOSS_CLI}" --connect --command=":shutdown" | indent && echo
+    fi
 }
 
 _shutdown_on_error() {
