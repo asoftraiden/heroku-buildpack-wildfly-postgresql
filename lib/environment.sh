@@ -4,7 +4,7 @@
 
 export_env_dir() {
     local envDir="$1"
-    local whitelist="${2:-''}"
+    local whitelist="${2:-""}"
     local blacklist="$(_env_blacklist "$3")"
 
     if [ -d "${envDir}" ]; then
@@ -12,7 +12,7 @@ export_env_dir() {
         for envFile in "${envDir}"/*; do
             local varname="${envFile#${envDir}/}"
             if echo "${varname}" | grep -E "${whitelist}" | grep -Evq "${blacklist}"; then
-                export "${varname}=\"$(cat "${envFile}")\""
+                export "${varname}=$(cat "${envFile}")"
             fi
         done
     fi
