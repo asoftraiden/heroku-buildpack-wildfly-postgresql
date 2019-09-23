@@ -157,16 +157,18 @@ install_postgresql_datasource() {
 
     _verify_postgresql_driver_installation
 
-    local warFile="$(_find_war_with_persistence_file "${WAR_PERSISTENCE_XML_PATH}")"
-
     local datasourceJNDIName="${DATASOURCE_JNDI_NAME:-${DEFAULT_DATASOURCE_JNDI_NAME}}"
     local datasourceName="${DATASOURCE_NAME:-${DEFAULT_DATASOURCE_JNDI_NAME##*/}}"
+
+    local warFile="$(_find_war_with_persistence_unit "${WAR_PERSISTENCE_XML_PATH}")"
 
     if [ -n "${warFile}" ] && [ -f "${warFile}" ]; then
         status "Found Persistence Unit in persistence.xml of deployment '${warFile##*/}'"
 
         local deploymentsTempDir="$(mktemp -d "/tmp/deployments.XXXXXX")"
-        local persistenceFile="$(_extract_persistence_file_from_war "${warFile}" "${WAR_PERSISTENCE_XML_PATH}" "${deploymentsTempDir}")"
+        unzip -d "${deploymentsTempDir}" -q "${warFile}" "${WAR_PERSISTENCE_XML_PATH}"
+        local persistenceFile="${deploymentsTempDir}/${WAR_PERSISTENCE_XML_PATH}"
+        #local persistenceFile="$(_extract_persistence_file_from_war "${warFile}" "${WAR_PERSISTENCE_XML_PATH}" "${deploymentsTempDir}")"
 
         datasourceJNDIName="${DATASOURCE_JNDI_NAME:-$(_get_datasource_jndi_name "${persistenceFile}")}"
         datasourceName="${DATASOURCE_NAME:-${datasourceJNDIName##*/}}"
@@ -257,7 +259,7 @@ with the POSTGRESQL_DRIVER_NAME config var."
     }
 }
 
-_find_war_with_persistence_file() {
+_find_war_with_persistence_unit() {
     local persistenceFilePath="$1"
 
     # Return at first match
@@ -276,9 +278,7 @@ _extract_persistence_file_from_war() {
     local targetDir="$3"
 
     if _war_file_contains_file "${warFile}" "${persistenceFilePath}"; then
-        set -x
         unzip -d "${targetDir}" -q "${warFile}" "${persistenceFilePath}"
-        echo "Exit code: $?"
         echo "${targetDir}/${persistenceFilePath}"
     fi
 }
@@ -535,41 +535,33 @@ _create_postgresql_driver_profile_script() {
     local buildDir="$1"
     local profileScript="${buildDir}/.profile.d/wildfly-postgresql.sh"
 
-    if [ -d "${buildDir}/.profile.d" ]; then
-        status_pending "Creating .profile.d script for PostgreSQL driver"
-        cat >> "${profileScript}" <<SCRIPT
+    mkdir -p "${buildDir}/.profile.d"
+    status_pending "Creating .profile.d script for PostgreSQL driver"
+    cat >> "${profileScript}" <<SCRIPT
 # Environment variables for the PostgreSQL Driver
 export POSTGRESQL_DRIVER_VERSION="${POSTGRESQL_DRIVER_VERSION}"
 export POSTGRESQL_DRIVER_NAME="${POSTGRESQL_DRIVER_NAME}"
 SCRIPT
-        status_done
-    fi
+    status_done
 }
 
 _create_postgresql_datasource_profile_script() {
     local buildDir="$1"
     local profileScript="${buildDir}/.profile.d/wildfly-postgresql.sh"
 
-    if [ -d "${buildDir}/.profile.d" ]; then
-        status_pending "Creating .profile.d script for PostgreSQL Datasource"
-        cat >> "${profileScript}" <<SCRIPT
+    mkdir -p "${buildDir}/.profile.d"
+    status_pending "Creating .profile.d script for PostgreSQL Datasource"
+    cat >> "${profileScript}" <<SCRIPT
 # Environment variables for the PostgreSQL Datasource
 export POSTGRESQL_DATASOURCE_NAME="${POSTGRESQL_DATASOURCE_NAME}"
 export POSTGRESQL_DATASOURCE_JNDI_NAME="${POSTGRESQL_DATASOURCE_JNDI_NAME}"
 SCRIPT
-        status_done
-    fi
+    status_done
+
 }
 
 _load_wildfly_environment_variables() {
     local buildDir="$1"
-
-    # First look after the .profile.d script of the Heroku Wildfly
-    # buildpack and source it if existing
-    local wildflyBuildpackScript="${buildDir}/.profile.d/wildfly.sh"
-    if [ -f "${wildflyBuildpackScript}" ] && grep -q "^export JBOSS_HOME=" "${wildflyBuildpackScript}"; then
-        source "${wildflyBuildpackScript}"
-    fi
 
     if [ -d "${buildDir}/.jboss" ]; then
         # Expand the Wildfly directory with a glob to get the directory name
@@ -597,7 +589,7 @@ https://github.com/mortenterhart/heroku-buildpack-wildfly
 An alternative way of setting JBOSS_HOME is to explicitly set a config
 var with the path to the WildFly home directory for your application:
 
-  heroku config:set JBOSS_HOME=path/to/wildfly-16.0.0.Final
+  heroku config:set JBOSS_HOME=path/to/wildfly-X.X.X.Final
 
 This setting overrides the location set by this buildpack."
         return 1
