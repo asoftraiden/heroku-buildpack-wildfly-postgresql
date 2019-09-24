@@ -45,7 +45,7 @@ source /tmp/heroku-buildpack-wildfly-postgresql/lib/datasource_utils.sh
 | `WAR_PERSISTENCE_XML_PATH` | unset |  |
 | `JBOSS_HOME` | automatically set | The path to the WildFly home directory |
 | `HIBERNATE_DIALECT` | `org.hibernate.dialect.PostgreSQL95Dialect` | The Hibernate dialect that is automatically updated |
-| `DISABLE_HIBERNATE_AUTO_UPDATE` | `false` | When set to `true` the auto update for the Hibernate dialect in the `persistence.xml` is disabled. |
+| `HIBERNATE_AUTO_UPDATE` | `true` | When set to `true` the auto update for the Hibernate dialect in the `persistence.xml` is disabled. |
 
 ### Configuring the Wildfly version
 

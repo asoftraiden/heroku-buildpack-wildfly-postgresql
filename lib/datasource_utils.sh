@@ -15,6 +15,12 @@ DEFAULT_DATASOURCE_CONNECTION_URL="\${env.JDBC_DATABASE_URL:}"
 DEFAULT_DATASOURCE_USERNAME="\${env.JDBC_DATABASE_USERNAME:}"
 DEFAULT_DATASOURCE_PASSWORD="\${env.JDBC_DATABASE_PASSWORD:}"
 
+export POSTGRESQL_DRIVER_NAME="${POSTGRESQL_DRIVER_NAME:-${DEFAULT_POSTGRESQL_DRIVER_NAME}}"
+export HIBERNATE_DIALECT="${HIBERNATE_DIALECT:-${DEFAULT_HIBERNATE_DIALECT}}"
+export HIBERNATE_AUTO_UPDATE="${HIBERNATE_AUTO_UPDATE:-"true"}"
+export WAR_PERSISTENCE_XML_PATH="${WAR_PERSISTENCE_XML_PATH:-${DEFAULT_WAR_PERSISTENCE_XML_PATH}}"
+export ONLY_INSTALL_DRIVER="${ONLY_INSTALL_DRIVER:-"false"}"
+
 _load_heroku_wildfly_buildpack() {
     local herokuWildflyBuildpackUrl="https://github.com/mortenterhart/heroku-buildpack-wildfly.git"
     local herokuWildflyBuildpackDir="/tmp/heroku-wildfly-buildpack"
@@ -83,8 +89,6 @@ _install_postgresql_jdbc_driver() {
     local moduleName="$1"
     local postgresqlVersion="$2"
 
-    export POSTGRESQL_DRIVER_NAME="${POSTGRESQL_DRIVER_NAME:-${DEFAULT_POSTGRESQL_DRIVER_NAME}}"
-
     _execute_jboss_command "Installing PostgreSQL JDBC Driver ${postgresqlVersion}" <<COMMAND
 /subsystem=datasources/jdbc-driver=postgresql:add(
     driver-name=${POSTGRESQL_DRIVER_NAME},
@@ -119,7 +123,7 @@ detect_postgresql_driver_version() {
     local buildDir="$1"
 
     if [ ! -d "${buildDir}" ]; then
-        error_return "Could not detect PostgreSQL Driver version: Build directory does not exist: ${buildDir}"
+        error_return "Failed to detect PostgreSQL Driver version: Build directory does not exist: ${buildDir}"
         return 1
     fi
 
@@ -137,8 +141,8 @@ detect_postgresql_driver_version() {
 }
 
 install_postgresql_datasource() {
-    # Config var ONLY_INSTALL_DRIVER
-    if [ -n "${ONLY_INSTALL_DRIVER}" ] && [ "${ONLY_INSTALL_DRIVER}" == "true" ]; then
+    if _only_install_driver; then
+        notice "Not installing PostgreSQL datasource because the ONLY_INSTALL_DRIVER config var has been set to 'true'"
         return
     fi
 
@@ -175,9 +179,11 @@ install_postgresql_datasource() {
             datasourceJNDIName="${DATASOURCE_JNDI_NAME:-$(_get_datasource_jndi_name "${persistenceFile}")}"
             datasourceName="${DATASOURCE_NAME:-${datasourceJNDIName##*/}}"
 
-            if [ "${DISABLE_HIBERNATE_DIALECT}" != "true" ] && [ -f "${persistenceFile}" ]; then
+            if _hibernate_auto_update_enabled && [ -f "${persistenceFile}" ]; then
                 update_hibernate_dialect "${persistenceFile}" "${HIBERNATE_DIALECT:-${DEFAULT_HIBERNATE_DIALECT}}"
                 update_file_in_war "${warFile}" "${deploymentsTempDir}" "${WAR_PERSISTENCE_XML_PATH}"
+            else
+                notice_inline "Auto-updating of Hibernate dialect is disabled"
             fi
 
             rm -rf "${deploymentsTempDir}"
@@ -195,15 +201,18 @@ Ensure that your path is relative to the root of the WAR archive."
         fi
     fi
 
+    DATASOURCE_JNDI_NAME="${datasourceJNDIName}"
+    DATASOURCE_NAME="${datasourceName}"
+
     notice "Using following parameters for datasource
-  Datasource Name: ${datasourceName}
-  Datasource JNDI Name: ${datasourceJNDIName}
+  Datasource Name: ${DATASOURCE_NAME}
+  Datasource JNDI Name: ${DATASOURCE_JNDI_NAME}
   PostgreSQL Driver Name: ${POSTGRESQL_DRIVER_NAME}"
 
     _execute_jboss_command "Creating PostgreSQL Datasource" <<COMMAND
 data-source add
-    --name=${datasourceName}
-    --jndi-name=${datasourceJNDIName}
+    --name=${DATASOURCE_NAME}
+    --jndi-name=${DATASOURCE_JNDI_NAME}
     --user-name=${username}
     --password=${password}
     --driver-name=${POSTGRESQL_DRIVER_NAME}
@@ -218,8 +227,8 @@ data-source add
     --exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLExceptionSorter
 COMMAND
 
-    export POSTGRESQL_DATASOURCE_NAME="${datasourceName}"
-    export POSTGRESQL_DATASOURCE_JNDI_NAME="${datasourceJNDIName}"
+    export POSTGRESQL_DATASOURCE_NAME="${DATASOURCE_NAME}"
+    export POSTGRESQL_DATASOURCE_JNDI_NAME="${DATASOURCE_JNDI_NAME}"
 
     _create_postgresql_datasource_profile_script "${buildDir}"
 
@@ -304,6 +313,32 @@ update_hibernate_dialect() {
 
         sed -Ei "s#org\.hibernate\.dialect\.[A-Za-z0-9]+Dialect#${dialect}#" "${persistenceFile}"
     fi
+}
+
+_only_install_driver_enabled() {
+    case "${ONLY_INSTALL_DRIVER}" in
+        true)   return 0 ;;
+        false)  return 1 ;;
+        *)
+            warning "Invalid value for ONLY_INSTALL_DRIVER config var: '${ONLY_INSTALL_DRIVER}'
+Valid values include 'true' and 'false'. Using default value 'false'."
+            ONLY_INSTALL_DRIVER="false"
+            return 1
+            ;;
+    esac
+}
+
+_hibernate_auto_update_enabled() {
+    case "${HIBERNATE_AUTO_UPDATE}" in
+        true)   return 0 ;;
+        false)  return 1 ;;
+        *)
+            warning "Invalid value for HIBERNATE_AUTO_UPDATE config var: '${HIBERNATE_AUTO_UPDATE}'
+Valid values include 'true' and 'false'. Using default value 'true'."
+            HIBERNATE_AUTO_UPDATE="true"
+            return 0
+            ;;
+    esac
 }
 
 update_file_in_war() {
