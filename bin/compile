@@ -8,7 +8,6 @@ set -e
 
 # Get the absolute path of the builpack directory
 BP_DIR="$(cd "${0%/*}/.."; pwd)"
-BIN_DIR="${BP_DIR}/bin"
 
 # parse args
 BUILD_DIR="$1"
