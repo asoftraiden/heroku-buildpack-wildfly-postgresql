@@ -14,13 +14,19 @@ BUILD_DIR="$1"
 CACHE_DIR="$2"
 ENV_DIR="$3"
 
-# Load WildFly utilites from Heroku WildFly buildpack
-HEROKU_WILDFLY_BUILDPACK_DIR="/tmp/heroku-buildpack-wildfly"
-git clone --quiet https://github.com/mortenterhart/heroku-buildpack-wildfly.git "${HEROKU_WILDFLY_BUILDPACK_DIR}"
-source "${HEROKU_WILDFLY_BUILDPACK_DIR}/lib/wildfly_utils.sh"
+# Load JVM Common buildpack utilities
+JVM_COMMON_BUILDPACK_URL="${JVM_COMMON_BUILDPACK_URL:-"https://buildpack-registry.s3.amazonaws.com/buildpacks/heroku/jvm.tgz"}"
+JVM_COMMON_DIR="/tmp/jvm-common"
+mkdir -p "${JVM_COMMON_DIR}"
+curl --retry 3 --silent --location "${JVM_COMMON_BUILDPACK_URL}" | tar xzm -C "${JVM_COMMON_DIR}" --strip-components=1
+source "${JVM_COMMON_DIR}/bin/util"
 
-source "${BP_DIR}/lib/datasource_utils.sh"
-source "${BP_DIR}/lib/environment.sh"
+# Load all scripts from lib/ directory
+# Temporary solution (TODO: Add some kind of dependency management between the scripts)
+for script in "${BP_DIR}"/lib/*.sh; do
+    source "${script}"
+done
+unset script
 
 export_env_dir "${ENV_DIR}"
 
