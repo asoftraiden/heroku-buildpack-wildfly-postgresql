@@ -33,3 +33,13 @@ _load_buildpack_stdlib() {
 # Load the JVM Common and Stdlib buildpacks
 _load_jvm_common_buildpack
 _load_buildpack_stdlib
+
+# Patch the 'nowms' function of the Stdlib buildpack for OS X because
+# it uses the BSD 'date' utility that does not support milliseconds and
+# has slightly different date formatting placeholders than GNU 'date'.
+nowms() {
+    case "$(uname)" in
+        Darwin) date "+%s000" ;; # BSD 'date' does not support milliseconds, so just append 3 zeros
+        *)      date "+%s%3N" ;; # GNU 'date' with milliseconds
+    esac
+}
