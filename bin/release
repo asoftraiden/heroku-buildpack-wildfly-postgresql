@@ -2,6 +2,7 @@
 # bin/release <build-dir>
 
 cat <<EOF
+---
 addons:
     - heroku-postgresql
 EOF
