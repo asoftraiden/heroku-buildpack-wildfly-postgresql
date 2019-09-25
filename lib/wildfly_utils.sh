@@ -89,7 +89,7 @@ _shutdown_on_error() {
 _load_wildfly_environment_variables() {
     local buildDir="$1"
 
-    if [ -d "${buildDir}/.jboss" ]; then
+    if [ -d "${buildDir}/.jboss" ] && [ -z "${JBOSS_HOME}" ]; then
         # Expand the Wildfly directory with a glob to get the directory name
         # and version
         local wildflyDir=("${buildDir}"/.jboss/wildfly-*)
