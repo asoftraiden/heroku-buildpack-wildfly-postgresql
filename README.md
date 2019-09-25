@@ -18,8 +18,8 @@ provisioned with the free `hobby-dev` plan for your application by this buildpac
 ```bash
 $ heroku buildpacks:clear
 $ heroku buildpacks:add heroku/java
-$ heroku buildpacks:add https://github.com/mortenterhart/heroku-buildpack-wildfly
-$ heroku buildpacks:add https://github.com/mortenterhart/heroku-buildpack-wildfly-postgresql
+$ heroku buildpacks:add mterhart/wildfly
+$ heroku buildpacks:add mterhart/wildfly-postgresql
 ```
 
 This buildpack depends on the [Wildfly buildpack][wildfly-buildpack] that installs
