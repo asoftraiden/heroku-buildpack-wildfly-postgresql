@@ -15,7 +15,7 @@ _load_script_dependencies() {
     source "${scriptDir}/load_buildpacks.sh"
 
     source "${scriptDir}/common.sh"
-    source "${scriptDir}/wildfly_utils.sh"
+    source "${scriptDir}/wildfly_controls.sh"
 }
 
 _load_script_dependencies
@@ -34,6 +34,7 @@ install_postgresql_driver() {
     fi
 
     local postgresqlVersion="${3:-$(detect_postgresql_driver_version "${buildDir}")}"
+    mcount "driver.version" "${postgresqlVersion}"
 
     local postgresqlDriverJar="postgresql-${postgresqlVersion}.jar"
 
@@ -62,18 +63,21 @@ _create_postgresql_driver_module() {
     local moduleName="$1"
     local postgresqlDriverPath="$2"
 
+    local -i start="$(nowms)"
     _execute_jboss_command "Creating PostgreSQL Driver module '${moduleName}'" <<COMMAND
 module add
     --name=${moduleName}
     --resources=${postgresqlDriverPath}
     --dependencies=javax.api,javax.transaction.api
 COMMAND
+    mtime "driver.module.creation.time" "${start}"
 }
 
 _install_postgresql_jdbc_driver() {
     local moduleName="$1"
     local postgresqlVersion="$2"
 
+    local -i start="$(nowms)"
     _execute_jboss_command "Installing PostgreSQL JDBC Driver ${postgresqlVersion}" <<COMMAND
 /subsystem=datasources/jdbc-driver=postgresql:add(
     driver-name=${POSTGRESQL_DRIVER_NAME},
@@ -81,6 +85,7 @@ _install_postgresql_jdbc_driver() {
     driver-xa-datasource-class-name=org.postgresql.xa.PGXADataSource
 )
 COMMAND
+    mtime "driver.installation.time" "${start}"
 }
 
 download_postgresql_driver() {
@@ -88,14 +93,17 @@ download_postgresql_driver() {
     local targetFilename="$2"
 
     local postgresqlDownloadUrl="$(_get_postgresql_driver_url "${postgresqlVersion}")"
+    mcount "driver.download.url" "${postgresqlDownloadUrl}"
 
     if ! validate_postgresql_driver_url "${postgresqlDownloadUrl}" "${postgresqlVersion}"; then
         return 1
     fi
 
+    local -i downloadStart="$(nowms)"
     status_pending "Downloading PostgreSQL JDBC Driver ${postgresqlVersion} to cache"
     curl --retry 3 --silent --location --output "${targetFilename}" "${postgresqlDownloadUrl}"
     status_done
+    mtime "driver.download.time" "${downloadStart}"
 
     status "Verifying SHA1 checksum"
     local postgresqlSHA1="$(curl --retry 3 --silent --location "${postgresqlDownloadUrl}.sha1")"
