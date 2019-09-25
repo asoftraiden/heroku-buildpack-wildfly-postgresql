@@ -29,13 +29,13 @@ error() {
 }
 
 if [ -n "${JBOSS_HOME}" ]; then
-    if [ ! -d "${JBOSS_HOME}" ]; then
+    if [ ! -d "${JBOSS_HOME}" ] || [ ! -f "${JBOSS_HOME}/bin/standalone.sh" ]; then
         error <<ERROR
 JBOSS_HOME is set to an invalid directory: ${JBOSS_HOME}
 
-The specified directory does not exist. Thus the buildpack could
-not find the WildFly installation directory. Ensure you have an
-existing WildFly installation setup before using this buildpack.
+The JBOSS_HOME environment variable does not point to a valid
+WildFly installation directory. Ensure you have an existing
+WildFly installation setup before using this buildpack.
 
 The preferred method of installing the WildFly server is with
 the Heroku WildFly buildpack. This can be added with the following
@@ -80,7 +80,7 @@ or another service to install the WildFly server to the '.jboss'
 directory.
 
 You can also explicitly set the JBOSS_HOME variable with a
-config var:
+config var to point to the installation directory:
 
   heroku config:set JBOSS_HOME=path/to/wildfly-X.X.X.Final
 
