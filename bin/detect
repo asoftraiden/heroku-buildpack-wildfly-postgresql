@@ -1,5 +1,95 @@
 #!/usr/bin/env bash
 # bin/detect <build-dir>
 
+BUILD_DIR="$1"
+
+# Prints a red error message that is passed via stdin to the
+# console and exits with an error.
+#
+# Input:
+#   stdin:   the error message
+#
+# Returns:
+#   stdout:  the error message on the console with an exit
+#            status of 1
+error() {
+    local c="2,999 s/^/ !     /"
+    # send all of our output to stderr
+    exec 1>&2
+
+    echo -e "\033[1;31m" # bold; red
+    echo -n " !     ERROR: "
+    # this will be fed from stdin
+    case "$(uname)" in
+        Darwin) sed -u "$c";; # mac/bsd sed: -l buffers on line boundaries
+        *)      sed -u "$c";; # unix/gnu sed: -u unbuffered (arbitrary) chunks of data
+    esac
+    echo -e "\033[0m" # reset style
+    exit 1
+}
+
+if [ -n "${JBOSS_HOME}" ]; then
+    if [ ! -d "${JBOSS_HOME}" ]; then
+        error <<ERROR
+JBOSS_HOME is set to an invalid directory: ${JBOSS_HOME}
+
+The specified directory does not exist. Thus the buildpack could
+not find the WildFly installation directory. Ensure you have an
+existing WildFly installation setup before using this buildpack.
+
+The preferred method of installing the WildFly server is with
+the Heroku WildFly buildpack. This can be added with the following
+commands to your application:
+
+  heroku buildpacks:clear
+  heroku buildpacks:add heroku/java
+  heroku buildpacks:add mterhart/wildfly
+  heroku buildpacks:add mterhart/wildfly-postgresql
+
+The WildFly buildpack is the easiest method of installation, but
+you can use other services for installation if necessary.
+
+This buildpack requires the JBOSS_HOME environment variable set
+either by the Heroku WildFly buildpack or by a custom config var.
+If JBOSS_HOME is not set the buildpack looks for a '.jboss'
+directory inside the build directory and sets the environment
+variables accordingly if a WildFly installation is found there.
+
+For more information refer to the GitHub repositories of those
+buildpacks:
+https://github.com/mortenterhart/heroku-buildpack-wildfly
+https://github.com/mortenterhart/heroku-buildpack-wildfly-postgresql
+
+If you can't find help or think this is a bug, please submit
+an issue at:
+https://github.com/mortenterhart/heroku-buildpack-wildfly-postgresql/issues/new
+ERROR
+    fi
+elif [ -d "${BUILD_DIR}/.jboss" ]; then
+    wildflyDir=("${BUILD_DIR}"/.jboss/wildfly-*)
+    if [ ! -d "${wildflyDir[0]}" ]; then
+        error <<ERROR
+No WildFly installation under '.jboss' directory
+
+If the JBOSS_HOME environment variable is not set this buildpack
+expects a WildFly installation under the '.jboss' directory as a
+fallback. However, no installation could be found there.
+
+Please ensure you are using either the Heroku WildFly buildpack
+or another service to install the WildFly server to the '.jboss'
+directory.
+
+You can also explicitly set the JBOSS_HOME variable with a
+config var:
+
+  heroku config:set JBOSS_HOME=path/to/wildfly-X.X.X.Final
+
+For more information refer to the GitHub repositories:
+https://github.com/mortenterhart/heroku-buildpack-wildfly
+https://github.com/mortenterhart/heroku-buildpack-wildfly-postgresql
+ERROR
+    fi
+fi
+
 echo "WildFly PostgreSQL"
 exit 0
