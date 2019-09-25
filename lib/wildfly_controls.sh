@@ -100,7 +100,9 @@ _load_wildfly_environment_variables() {
         fi
     fi
 
-    if [ -z "${JBOSS_HOME}" ] || [ ! -d "${JBOSS_HOME}" ]; then
+    if [ -z "${JBOSS_HOME}" ] || \
+       [ ! -d "${JBOSS_HOME}" ] || \
+       [ ! -f "${JBOSS_HOME}/bin/standalone.sh" ]; then
         error_return "JBOSS_HOME not set or not existing
 
 The JBOSS_HOME directory is not set correctly. Verify that you have an
