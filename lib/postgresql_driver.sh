@@ -112,6 +112,29 @@ download_postgresql_driver() {
     fi
 }
 
+# Verifies the SHA-1 checksum that is provided for the WildFly zip file. The
+# checksum needs to be downloaded from the WildFly download page and can be
+# passed to this function in order to check it against the zip file.
+#
+# Params:
+#   $1:  checksum  the downloaded SHA-1 checksum for the zip file
+#   $2:  file      the path to the zip file
+#
+# Returns:
+#   0: The checksum matches the zip file
+#   1: The checksum is invalid
+verify_sha1_checksum() {
+    local checksum="$1"
+    local file="$2"
+
+    if ! echo "${checksum} ${file}" | sha1sum --check --strict --quiet; then
+        error_return "SHA1 checksum verification failed for ${file}"
+        return 1
+    fi
+
+    return 0
+}
+
 detect_postgresql_driver_version() {
     local buildDir="$1"
 
