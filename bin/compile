@@ -1,18 +1,26 @@
 #!/usr/bin/env bash
 # bin/compile <build-dir> <cache-dir> <env-dir>
 #
-# shellcheck disable=SC1090
+# shellcheck disable=SC1090,SC2155
 
-# fail fast
+# Fail fast
 set -e
 
 # Get the absolute path of the builpack directory
 BP_DIR="$(cd "${0%/*}/.."; pwd)"
 
-# parse args
+# Parse args
 BUILD_DIR="$1"
 CACHE_DIR="$2"
 ENV_DIR="$3"
+
+# Buildpack Log Prefix
+export BPLOG_PREFIX="buildpack.wildfly-postgresql"
+
+# Save logs in the cache directory with the
+# current UNIX timestamp
+mkdir -p "${CACHE_DIR}/logs"
+export BUILDPACK_LOG_FILE="${CACHE_DIR}/logs/${BPLOG_PREFIX}_$(date "+%s").log"
 
 # Load JVM Common buildpack utilities
 JVM_COMMON_BUILDPACK_URL="${JVM_COMMON_BUILDPACK_URL:-"https://buildpack-registry.s3.amazonaws.com/buildpacks/heroku/jvm.tgz"}"
@@ -21,14 +29,15 @@ mkdir -p "${JVM_COMMON_DIR}"
 curl --retry 3 --silent --location "${JVM_COMMON_BUILDPACK_URL}" | tar xzm -C "${JVM_COMMON_DIR}" --strip-components=1
 source "${JVM_COMMON_DIR}/bin/util"
 
-# Load all scripts from lib/ directory
-# Temporary solution (TODO: Add some kind of dependency management between the scripts)
-for script in "${BP_DIR}"/lib/*.sh; do
-    source "${script}"
-done
-unset script
+# Load the main buildpack scripts
+source "${BP_DIR}/environment.sh"
+source "${BP_DIR}/lib/postgresql_driver.sh"
+source "${BP_DIR}/lib/postgresql_datasource.sh"
 
+# Export config vars to the environment
 export_env_dir "${ENV_DIR}"
 
+# Install PostgreSQL driver and datasource to
+# the WildFly server
 install_postgresql_driver "${BUILD_DIR}" "${CACHE_DIR}"
 install_postgresql_datasource "${BUILD_DIR}"
