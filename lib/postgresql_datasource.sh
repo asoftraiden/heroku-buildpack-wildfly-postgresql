@@ -27,14 +27,14 @@ _load_script_dependencies() {
     source "${scriptDir}/common.sh"
     source "${scriptDir}/hibernate_dialect.sh"
     source "${scriptDir}/path_utils.sh"
-    source "${scriptDir}/wildfly_utils.sh"
+    source "${scriptDir}/wildfly_controls.sh"
 }
 
 _load_script_dependencies
 unset -f _load_script_dependencies
 
 install_postgresql_datasource() {
-    if _only_install_driver; then
+    if _only_install_driver_enabled; then
         notice "Not installing PostgreSQL datasource because the ONLY_INSTALL_DRIVER config var has been set to 'true'"
         return
     fi
@@ -56,52 +56,19 @@ install_postgresql_datasource() {
 
     _verify_postgresql_driver_installation
 
-    local datasourceJNDIName="${DATASOURCE_JNDI_NAME:-${DEFAULT_DATASOURCE_JNDI_NAME}}"
-    local datasourceName="${DATASOURCE_NAME:-${DEFAULT_DATASOURCE_JNDI_NAME##*/}}"
+    local -i identifyStart="$(nowms)"
 
     if [ -z "${DATASOURCE_JNDI_NAME}" ] || [ -z "${DATASOURCE_NAME}" ]; then
-        local warFile="$(_find_war_with_persistence_unit "${WAR_PERSISTENCE_XML_PATH}")"
-
-        if [ -n "${warFile}" ] && [ -f "${warFile}" ]; then
-            status "Found Persistence Unit in persistence.xml of deployment '${warFile##*/}'"
-            local deploymentsTempDir="$(mktemp -d "/tmp/deployments.XXXXXX")"
-
-            unzip -d "${deploymentsTempDir}" -q "${warFile}" "${WAR_PERSISTENCE_XML_PATH}"
-            local persistenceFile="${deploymentsTempDir}/${WAR_PERSISTENCE_XML_PATH}"
-
-            datasourceJNDIName="${DATASOURCE_JNDI_NAME:-$(_get_datasource_jndi_name "${persistenceFile}")}"
-            datasourceName="${DATASOURCE_NAME:-${datasourceJNDIName##*/}}"
-
-            if _hibernate_auto_update_enabled && [ -f "${persistenceFile}" ]; then
-                update_hibernate_dialect "${persistenceFile}" "${HIBERNATE_DIALECT:-${DEFAULT_HIBERNATE_DIALECT}}"
-                update_file_in_war "${warFile}" "${deploymentsTempDir}" "${WAR_PERSISTENCE_XML_PATH}"
-            else
-                notice_inline "Auto-updating of Hibernate dialect is disabled"
-            fi
-
-            rm -rf "${deploymentsTempDir}"
-        else
-            warning "No Persistence Unit found in any WAR file. Database connections will not be possible.
-
-The buildpack looks for a persistence.xml definition at the path
-'${WAR_PERSISTENCE_XML_PATH}' in all deployed WAR files.
-The path can be altered by setting the WAR_PERSISTENCE_XML_PATH
-config var which overrides the default value:
-
-  heroku config:set WAR_PERSISTENCE_XML_PATH=path/in/war
-
-Ensure that your path is relative to the root of the WAR archive."
-        fi
+        identify_and_update_persistence_unit
     fi
-
-    DATASOURCE_JNDI_NAME="${datasourceJNDIName}"
-    DATASOURCE_NAME="${datasourceName}"
+    mtime "datasource.identify.persistence-unit.time" "${identifyStart}"
 
     notice "Using following parameters for datasource
   Datasource Name: ${DATASOURCE_NAME}
   Datasource JNDI Name: ${DATASOURCE_JNDI_NAME}
   PostgreSQL Driver Name: ${POSTGRESQL_DRIVER_NAME}"
 
+    local -i datasourceCreationStart="$(nowms)"
     _execute_jboss_command "Creating PostgreSQL Datasource" <<COMMAND
 data-source add
     --name=${DATASOURCE_NAME}
@@ -119,6 +86,7 @@ data-source add
     --background-validation=true
     --exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLExceptionSorter
 COMMAND
+    mtime "datasource.creation.time" "${datasourceCreationStart}"
 
     export POSTGRESQL_DATASOURCE_NAME="${DATASOURCE_NAME}"
     export POSTGRESQL_DATASOURCE_JNDI_NAME="${DATASOURCE_JNDI_NAME}"
@@ -128,11 +96,58 @@ COMMAND
     _shutdown_wildfly_server
 }
 
+identify_and_update_persistence_unit() {
+    local datasourceJNDIName="${DATASOURCE_JNDI_NAME:-${DEFAULT_DATASOURCE_JNDI_NAME}}"
+    local datasourceName="${DATASOURCE_NAME:-${DEFAULT_DATASOURCE_JNDI_NAME##*/}}"
+
+    local warFile="$(_find_war_with_persistence_unit "${WAR_PERSISTENCE_XML_PATH}")"
+
+    if [ -n "${warFile}" ] && [ -f "${warFile}" ]; then
+        status "Found Persistence Unit in persistence.xml of deployment '${warFile##*/}'"
+        local deploymentsTempDir="$(mktemp -d "/tmp/deployments.XXXXXX")"
+
+        unzip -d "${deploymentsTempDir}" -q "${warFile}" "${WAR_PERSISTENCE_XML_PATH}"
+        local persistenceFile="${deploymentsTempDir}/${WAR_PERSISTENCE_XML_PATH}"
+
+        datasourceJNDIName="${DATASOURCE_JNDI_NAME:-$(_get_datasource_jndi_name "${persistenceFile}")}"
+        datasourceName="${DATASOURCE_NAME:-${datasourceJNDIName##*/}}"
+
+        if _hibernate_auto_update_enabled && [ -f "${persistenceFile}" ]; then
+            local -i updateStart="$(nowms)"
+
+            update_hibernate_dialect "${persistenceFile}" "${HIBERNATE_DIALECT}"
+            update_file_in_war "${warFile}" "${deploymentsTempDir}" "${WAR_PERSISTENCE_XML_PATH}"
+
+            mtime "hibernate.update.time" "${updateStart}"
+        else
+            notice_inline "Auto-updating of Hibernate dialect is disabled"
+        fi
+
+        rm -rf "${deploymentsTempDir}"
+    else
+        warning "No Persistence Unit found in any WAR file. Database connections will not be possible.
+
+The buildpack looks for a persistence.xml definition at the path
+'${WAR_PERSISTENCE_XML_PATH}' in all deployed WAR files.
+The path can be altered by setting the WAR_PERSISTENCE_XML_PATH
+config var which overrides the default value:
+
+  heroku config:set WAR_PERSISTENCE_XML_PATH=path/in/war
+
+Ensure that your path is relative to the root of the WAR archive."
+    fi
+
+    export DATASOURCE_JNDI_NAME="${datasourceJNDIName}"
+    export DATASOURCE_NAME="${datasourceName}"
+}
+
 _verify_postgresql_driver_installation() {
     if ! _is_wildfly_running; then
         _start_wildfly_server
         _wait_until_wildfly_running
     fi
+
+    local -i start="$(nowms)"
 
     status "Verifying PostgreSQL driver installation"
 
@@ -162,6 +177,8 @@ the correct driver name. You can also manually set the driver name
 with the POSTGRESQL_DRIVER_NAME config var."
         return 1
     }
+
+    mtime "driver.verification.time" "${start}"
 }
 
 _find_war_with_persistence_unit() {
