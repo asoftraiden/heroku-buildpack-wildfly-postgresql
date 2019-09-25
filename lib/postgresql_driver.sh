@@ -7,6 +7,20 @@ DEFAULT_POSTGRESQL_DRIVER_VERSION="42.2.8"
 
 export POSTGRESQL_DRIVER_NAME="${POSTGRESQL_DRIVER_NAME:-${DEFAULT_POSTGRESQL_DRIVER_NAME}}"
 
+_load_script_dependencies() {
+    # Get absolute path of script directory
+    local scriptDir="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
+
+    # Load dependent buildpacks
+    source "${scriptDir}/load_buildpacks.sh"
+
+    source "${scriptDir}/common.sh"
+    source "${scriptDir}/wildfly_utils.sh"
+}
+
+_load_script_dependencies
+unset -f _load_script_dependencies
+
 install_postgresql_driver() {
     local buildDir="$1"
     local cacheDir="$2"

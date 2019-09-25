@@ -17,6 +17,22 @@ export HIBERNATE_AUTO_UPDATE="${HIBERNATE_AUTO_UPDATE:-"true"}"
 export WAR_PERSISTENCE_XML_PATH="${WAR_PERSISTENCE_XML_PATH:-${DEFAULT_WAR_PERSISTENCE_XML_PATH}}"
 export ONLY_INSTALL_DRIVER="${ONLY_INSTALL_DRIVER:-"false"}"
 
+_load_script_dependencies() {
+    # Get absolute path of script directory
+    local scriptDir="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
+
+    # Load dependent buildpacks
+    source "${scriptDir}/load_buildpacks.sh"
+
+    source "${scriptDir}/common.sh"
+    source "${scriptDir}/hibernate_dialect.sh"
+    source "${scriptDir}/path_utils.sh"
+    source "${scriptDir}/wildfly_utils.sh"
+}
+
+_load_script_dependencies
+unset -f _load_script_dependencies
+
 install_postgresql_datasource() {
     if _only_install_driver; then
         notice "Not installing PostgreSQL datasource because the ONLY_INSTALL_DRIVER config var has been set to 'true'"
