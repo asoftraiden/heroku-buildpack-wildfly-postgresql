@@ -35,3 +35,18 @@ get_app_system_property() {
         sed -E "s/[[:blank:]]*${escaped_property}[[:blank:]]*=[[:blank:]]*//"
     fi
 }
+
+# Returns the HTTP status code for the specified url. All other output from
+# curl is discarded. This can be used to check the validity of urls, for
+# example the WildFly download url.
+#
+# Params:
+#   $1:  url  the url for which to get the status code
+#
+# Returns:
+#   stdout: the HTTP status code
+_get_url_status() {
+    local url="$1"
+
+    curl --retry 3 --silent --head --write-out "%{http_code}" --output /dev/null --location "${url}"
+}
