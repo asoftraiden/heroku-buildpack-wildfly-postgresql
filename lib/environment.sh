@@ -2,6 +2,23 @@
 #
 # shellcheck disable=SC2155
 
+# Exports the config vars in the environment directory ENV_DIR as
+# environment variables. Heroku creates a file for each defined
+# config var in ENV_DIR with the filename being the variable name
+# and the contents being the value of the variable. However, some
+# variables like $PATH, $GIT_DIR or $CPATH can cause conflicts
+# with other programs when exported. Therefore these variables can
+# be defined on the blacklist not to get exported. On the other
+# hand the whitelist contains variables that are exported
+# explicitly.
+#
+# Params:
+#   $1:  envDir     The Heroku directory for config vars
+#   $2:  whitelist  (optional) A list of variables to export explicitly
+#   $3:  blacklist  (optional) A list of variables not to export
+#
+# Returns:
+#   exit status 0
 export_env_dir() {
     local envDir="$1"
     local whitelist="${2:-""}"
@@ -18,8 +35,15 @@ export_env_dir() {
     fi
 }
 
-# Usage: $ _env-blacklist pattern
-# Outputs a regex of default blacklist env vars.
+# Builds a grep regex for blacklisting default environment variables.
+# Additional variables can be added with the regex parameter.
+#
+# Params:
+#   $1:  regex  (optional) Custom regex for blacklisting environment
+#               variables
+#
+# Returns:
+#   stdout: the resulting regex
 _env_blacklist() {
     local regex=${1:-''}
     if [ -n "$regex" ]; then
