@@ -3,8 +3,17 @@
 #
 # shellcheck disable=SC1090,SC2155
 
-# Fail fast
+# Exit on commands exiting with non-zero exit status
 set -e
+
+# Inherit ERR traps in Shell functions. Usually, if
+# 'set -e' is enabled, traps that capture errors are
+# not in effect in sub-functions, i.e. functions that
+# are called from other functions. Since this buildpack
+# relies on combining various functions, 'set -E' makes
+# the Shell handle ERR traps in sub-functions (see also
+# https://stackoverflow.com/a/35800451).
+set -E
 
 # Get the absolute path of the builpack directory
 BP_DIR="$(cd "${0%/*}/.."; pwd)"
