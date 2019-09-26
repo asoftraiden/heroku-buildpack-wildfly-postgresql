@@ -1,0 +1,8 @@
+[buildpack]
+name = "Heroku WildFly PostgreSQL Buildpack"
+
+    [publish.Ignore]
+    files = [
+        ".gitignore",
+        ".travis.yml"
+    ]
