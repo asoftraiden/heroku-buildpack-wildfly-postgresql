@@ -44,6 +44,9 @@ hs_err_pid*
 # Visual Studio Code
 .vscode/
 
+# WildFly server
+.jboss/
+
 # Mac OS X
 .DS_Store
 
