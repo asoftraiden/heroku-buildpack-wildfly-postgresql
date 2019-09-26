@@ -25,6 +25,9 @@ _load_script_dependencies() {
     source "${scriptDir}/load_buildpacks.sh"
 
     source "${scriptDir}/common.sh"
+    source "${scriptDir}/errors.sh"
+    source "${scriptDir}/warnings.sh"
+
     source "${scriptDir}/hibernate_dialect.sh"
     source "${scriptDir}/path_utils.sh"
     source "${scriptDir}/wildfly_controls.sh"
@@ -51,7 +54,7 @@ install_postgresql_datasource() {
 
     _load_wildfly_environment_variables "${buildDir}"
 
-    _check_errexit_set
+    _check_error_options_set
     _shutdown_on_error
 
     _verify_postgresql_driver_installation
@@ -125,16 +128,7 @@ identify_and_update_persistence_unit() {
 
         rm -rf "${deploymentsTempDir}"
     else
-        warning "No Persistence Unit found in any WAR file. Database connections will not be possible.
-
-The buildpack looks for a persistence.xml definition at the path
-'${WAR_PERSISTENCE_XML_PATH}' in all deployed WAR files.
-The path can be altered by setting the WAR_PERSISTENCE_XML_PATH
-config var which overrides the default value:
-
-  heroku config:set WAR_PERSISTENCE_XML_PATH=path/in/war
-
-Ensure that your path is relative to the root of the WAR archive."
+        warning_no_persistence_unit_found "${WAR_PERSISTENCE_XML_PATH}"
     fi
 
     export DATASOURCE_JNDI_NAME="${datasourceJNDIName}"
@@ -152,12 +146,7 @@ _verify_postgresql_driver_installation() {
     status "Verifying PostgreSQL driver installation"
 
     if [ -z "${POSTGRESQL_DRIVER_NAME}" ]; then
-        error_return "PostgreSQL driver name is not set
-
-The PostgreSQL datasource depends on an existing driver installation.
-Please ensure you have the PostgreSQL driver installed. You can also
-manually set the name of the driver using the POSTGRESQL_DRIVER_NAME
-config var."
+        error_postgresql_driver_name_not_set
         return 1
     fi
 
@@ -168,13 +157,7 @@ config var."
 )
 COMMAND
     grep -q "\"result\" => \"${POSTGRESQL_DRIVER_NAME}\"" || {
-        error_return "PostgreSQL driver is not installed: ${POSTGRESQL_DRIVER_NAME}
-
-The configured driver '${POSTGRESQL_DRIVER_NAME}' is not installed
-at the WildFly server. Ensure the PostgreSQL driver is correctly
-installed before installing the datasource and that you are using
-the correct driver name. You can also manually set the driver name
-with the POSTGRESQL_DRIVER_NAME config var."
+        error_postgresql_driver_not_installed "${POSTGRESQL_DRIVER_NAME}"
         return 1
     }
 
@@ -210,8 +193,7 @@ _only_install_driver_enabled() {
         true)   return 0 ;;
         false)  return 1 ;;
         *)
-            warning "Invalid value for ONLY_INSTALL_DRIVER config var: '${ONLY_INSTALL_DRIVER}'
-Valid values include 'true' and 'false'. Using default value 'false'."
+            warning_config_var_invalid_boolean_value "ONLY_INSTALL_DRIVER" "false"
             ONLY_INSTALL_DRIVER="false"
             return 1
             ;;
@@ -223,8 +205,7 @@ _hibernate_auto_update_enabled() {
         true)   return 0 ;;
         false)  return 1 ;;
         *)
-            warning "Invalid value for HIBERNATE_AUTO_UPDATE config var: '${HIBERNATE_AUTO_UPDATE}'
-Valid values include 'true' and 'false'. Using default value 'true'."
+            warning_config_var_invalid_boolean_value "HIBERNATE_AUTO_UPDATE" "true"
             HIBERNATE_AUTO_UPDATE="true"
             return 0
             ;;

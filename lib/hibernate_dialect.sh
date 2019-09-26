@@ -27,33 +27,18 @@ validate_hibernate_dialect() {
     local referenceUrl="${hibernateDocsBaseUrl}/org/hibernate/dialect/package-summary.html"
 
     if ! [[ "${dialect}" =~ ^org\.hibernate\.dialect ]]; then
-        error_return "Invalid Hibernate dialect namespace: ${dialect}
-
-The Hibernate dialect needs to begin with the 'org.hibernate.dialect'
-namespace. For a complete list of dialects visit
-${referenceUrl}"
+        error_invalid_hibernate_dialect_namespace "${dialect}" "${referenceUrl}"
         return 1
     fi
 
     if ! [[ "${dialect}" =~ PostgreSQL[8-9]?[0-5]?Dialect$ ]]; then
-        error_return "Not a PostgreSQL dialect: ${dialect}
-
-The requested Hibernate dialect is not applicable to PostgreSQL. As
-this buildpack creates a datasource for connecting to a PostgreSQL
-database the dialect is expected to be Postgres-compatible.
-
-For a complete list of supported dialects visit
-${referenceUrl}"
+        error_not_a_postgresql_dialect "${dialect}" "${referenceUrl}"
         return 1
     fi
 
     local docsUrl="${hibernateDocsBaseUrl}/${dialect//.//}.html"
     if [ "$(_get_url_status "${docsUrl}")" != "200" ]; then
-        error_return "Unsupported Hibernate dialect: ${dialect}
-
-The requested Hibernate dialect does not exist. Please verify that
-you use one of the dialects defined at
-${referenceUrl}"
+        error_unsupported_hibernate_dialect "${dialect}" "${referenceUrl}"
         return 1
     fi
 }

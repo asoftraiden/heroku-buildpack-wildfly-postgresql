@@ -13,13 +13,14 @@ _execute_jboss_command() {
     fi
 
     # We need to use the 'true' command here since 'read' exits with 1
-    # if it doesn't find the delimiter which is usually '\n'. This is
-    # very important for scripts using 'set -e' like the buildpack's
-    # compile script so that they don't abort execution (see also
-    # https://stackoverflow.com/questions/15421331/reading-a-bash-variable-from-a-multiline-here-document).
-    #
-    # The delimiter is unset here so that 'read' obtains the complete
-    # input including all lines and sets it to the command variable.
+    # when it encounters EOF. The delimiter is unset here so that 'read'
+    # obtains the complete input including all lines and sets it to the
+    # command variable. The 'true' command is important for scripts
+    # using 'set -e' like the buildpack's compile script so that they
+    # don't abort execution on the exit code 1 (see also
+    # https://stackoverflow.com/a/15422165). The 'set -e' option is
+    # responsible for exiting the shell if a command exits with a non-zero
+    # exit status.
     local command
     read -r -d '' command || true
 
@@ -46,6 +47,15 @@ _execute_jboss_command_pipable() {
         return 1
     fi
 
+    # We need to use the 'true' command here since 'read' exits with 1
+    # when it encounters EOF. The delimiter is unset here so that 'read'
+    # obtains the complete input including all lines and sets it to the
+    # command variable. The 'true' command is important for scripts
+    # using 'set -e' like the buildpack's compile script so that they
+    # don't abort execution on the exit code 1 (see also
+    # https://stackoverflow.com/a/15422165). The 'set -e' option is
+    # responsible for exiting the shell if a command exits with a non-zero
+    # exit status.
     local command
     read -r -d '' command || true
 
@@ -103,23 +113,7 @@ _load_wildfly_environment_variables() {
     if [ -z "${JBOSS_HOME}" ] || \
        [ ! -d "${JBOSS_HOME}" ] || \
        [ ! -f "${JBOSS_HOME}/bin/standalone.sh" ]; then
-        error_return "JBOSS_HOME not set or not existing
-
-The JBOSS_HOME directory is not set correctly. Verify that you have an
-existing WildFly installation under the '.jboss' directory. This can
-be done either by the associated Heroku WildFly buildpack or by any
-other external service installing a WildFly service to '.jboss'.
-
-The associated buildpack is intended by this buildpack and the preferred
-way of installation. For more information refer to the GitHub repository:
-https://github.com/mortenterhart/heroku-buildpack-wildfly
-
-An alternative way of setting JBOSS_HOME is to explicitly set a config
-var with the path to the WildFly home directory for your application:
-
-  heroku config:set JBOSS_HOME=path/to/wildfly-X.X.X.Final
-
-This setting overrides the location set by this buildpack."
+        error_jboss_home_not_set
         return 1
     fi
 }

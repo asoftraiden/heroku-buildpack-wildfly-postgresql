@@ -15,6 +15,8 @@ _load_script_dependencies() {
     source "${scriptDir}/load_buildpacks.sh"
 
     source "${scriptDir}/common.sh"
+    source "${scriptDir}/errors.sh"
+
     source "${scriptDir}/wildfly_controls.sh"
 }
 
@@ -46,7 +48,7 @@ install_postgresql_driver() {
 
     _load_wildfly_environment_variables "${buildDir}"
 
-    _check_errexit_set
+    _check_error_options_set
     _shutdown_on_error
 
     local moduleName="org.postgresql"
@@ -161,14 +163,7 @@ validate_postgresql_driver_url() {
     local postgresqlVersion="$2"
 
     if [ "$(_get_url_status "${postgresqlUrl}")" != "200" ]; then
-        error_return "Unsupported PostgreSQL Driver version: ${postgresqlVersion}
-
-Please ensure the specified version in 'postgresql.driver.version' in your
-system.properties file is valid and one of those uploaded to Maven Central:
-http://central.maven.org/maven2/org/postgresql/postgresql
-
-You can also remove the property from your system.properties file to install
-the default version ${DEFAULT_POSTGRESQL_DRIVER_VERSION}."
+        error_unsupported_postgresql_driver_version "${postgresqlVersion}" "${DEFAULT_POSTGRESQL_DRIVER_VERSION}"
         return 1
     fi
 }
