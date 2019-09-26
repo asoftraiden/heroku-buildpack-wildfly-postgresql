@@ -21,6 +21,11 @@ _load_jvm_common_buildpack() {
     source "${jvmCommonDir}/bin/util"
 }
 
+# Downloads the Stdlib Buildpack if not already existing and sources the
+# utility functions used for output and logging such as 'mtime' and 'mcount'.
+#
+# Returns:
+#   always 0
 _load_buildpack_stdlib() {
     local stdlibFile="/tmp/stdlib-v8.sh"
     if [ ! -f "${stdlibFile}" ]; then
