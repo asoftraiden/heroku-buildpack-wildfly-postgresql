@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
 
-_check_errexit_set() {
+# Determines whether the 'errexit' and 'errtrace' options are set in
+# the current Shell context. These options can be set with the 'set -e'
+# and 'set -E' commands that are recommended when using this buildpack.
+#
+# 'errexit' makes the Shell exit on any command exiting with non-zero
+# exit status. 'errtrace' makes the ERR trap signal be inherited in
+# Shell functions so that the trap is also triggered in sub-functions.
+_check_error_options_set() {
     if ! shopt -qo "errexit"; then
-        warning "'errexit' option not set
+        warning_errexit_not_set
+    fi
 
-You should use 'set -e' in your script as this buildpack relies
-on error handling by exit status. Without it the build continues
-on errors and may cause undesired results."
+    # 'errtrace' is only required if 'errexit' is set
+    if shopt -qo "errexit" && ! shopt -qo "errtrace"; then
+        warning_errtrace_not_set
     fi
 }
 
