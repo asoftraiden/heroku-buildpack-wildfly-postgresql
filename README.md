@@ -16,10 +16,10 @@ instance and this buildpack to add a driver and a datasource for the official
 provisioned with the free `hobby-dev` plan for your application by this buildpack.
 
 ```bash
-$ heroku buildpacks:clear
-$ heroku buildpacks:add heroku/java
-$ heroku buildpacks:add mterhart/wildfly
-$ heroku buildpacks:add mterhart/wildfly-postgresql
+heroku buildpacks:clear
+heroku buildpacks:add heroku/java
+heroku buildpacks:add mterhart/wildfly
+heroku buildpacks:add mterhart/wildfly-postgresql
 ```
 
 This buildpack depends on the [Wildfly buildpack][wildfly-buildpack] that installs
@@ -29,8 +29,11 @@ to add the buildpacks in the correct order.
 ## Usage from a Buildpack
 
 ```bash
-git clone --quiet https://github.com/mortenterhart/heroku-buildpack-wildfly-postgresql.git /tmp/heroku-buildpack-wildfly-postgresqlp/heroku-buildpack-wildfly-postgresql
-source /tmp/heroku-buildpack-wildfly-postgresql/lib/datasource_utils.sh
+WILDFLY_POSTGRESQL_BUILDPACK_URL="https://buildpack-registry.s3.amazonaws.com/buildpacks/mterhart/wildfly-postgresql.tgz"
+mkdir -p /tmp/wildfly-postgresql-buildpack
+curl --retry 3 --silent --location "${WILDFLY_POSTGRESQL_BUILDPACK_URL}" | tar xzm -C /tmp/wildfly-postgresql-buildpack --strip-components=1
+source /tmp/wildfly-postgresql-buildpack/lib/postgresql_driver.sh
+source /tmp/wildfly-postgresql-buildpack/lib/postgresql_datasource.sh
 ```
 
 ## Configuration
@@ -44,8 +47,8 @@ source /tmp/heroku-buildpack-wildfly-postgresql/lib/datasource_utils.sh
 | `ONLY_INSTALL_DRIVER` | `false` | When set to `true` this buildpack will only install the driver and not create the datasource for WildFly. |
 | `WAR_PERSISTENCE_XML_PATH` | unset |  |
 | `JBOSS_HOME` | automatically set | The path to the WildFly home directory |
+| `HIBERNATE_DIALECT_AUTO_UPDATE` | `true` | When set to `true` the auto update for the Hibernate dialect in the `persistence.xml` is disabled. |
 | `HIBERNATE_DIALECT` | `org.hibernate.dialect.PostgreSQL95Dialect` | The Hibernate dialect that is automatically updated |
-| `HIBERNATE_AUTO_UPDATE` | `true` | When set to `true` the auto update for the Hibernate dialect in the `persistence.xml` is disabled. |
 
 ### Configuring the Wildfly version
 
