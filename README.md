@@ -1,5 +1,13 @@
 # Heroku WildFly PostgreSQL Buildpack
 
+[![Heroku Elements](https://img.shields.io/badge/Heroku_Elements-published-6762A6)][heroku-elements]
+[![Buildpack Registry](https://img.shields.io/badge/Buildpack_Registry-mterhart/wildfly--postgresql-6762A6)][buildpack-registry]
+[![Latest GitHub Tag](https://img.shields.io/github/v/tag/mortenterhart/heroku-buildpack-wildfly-postgresql?color=blue&label=Latest%20Version&logo=github)][github-tags]
+
+[heroku-elements]: https://elements.heroku.com/buildpacks/mortenterhart/heroku-buildpack-wildfly-postgresql "Buildpack on Heroku Elements"
+[buildpack-registry]: https://devcenter.heroku.com/articles/buildpack-registry "Buildpack Registry"
+[github-tags]: https://github.com/mortenterhart/heroku-buildpack-wildfly-postgresql/tags "Latest GitHub Tags"
+
 This is a [Heroku Buildpack](https://devcenter.heroku.com/articles/buildpacks) for
 adding a PostgreSQL Driver and Datasource to an existing [Wildfly AS](http://wildfly.org).
 
@@ -32,6 +40,7 @@ to add the buildpacks in the correct order.
 WILDFLY_POSTGRESQL_BUILDPACK_URL="https://buildpack-registry.s3.amazonaws.com/buildpacks/mterhart/wildfly-postgresql.tgz"
 mkdir -p /tmp/wildfly-postgresql-buildpack
 curl --retry 3 --silent --location "${WILDFLY_POSTGRESQL_BUILDPACK_URL}" | tar xzm -C /tmp/wildfly-postgresql-buildpack --strip-components=1
+
 source /tmp/wildfly-postgresql-buildpack/lib/postgresql_driver.sh
 source /tmp/wildfly-postgresql-buildpack/lib/postgresql_datasource.sh
 ```
