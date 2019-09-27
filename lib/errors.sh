@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
 
+# Writes a formatted error message provided on stdin to the standard
+# output and exits with an status of 1. If no input is provided on the
+# stdin channel the function produces an error itself.
+#
+# Input:
+#   stdin:  the error message
+#
+# Returns
+#   stdout: the resulting error message
+#   exit code: 1
 write_error() {
     if [ -t 0 ]; then
         error "Error message on stdin expected. Use a heredoc to write it."
