@@ -13,7 +13,7 @@ DEFAULT_WAR_PERSISTENCE_XML_PATH="WEB-INF/classes/META-INF/persistence.xml"
 DEFAULT_HIBERNATE_DIALECT="org.hibernate.dialect.PostgreSQL95Dialect"
 
 export HIBERNATE_DIALECT="${HIBERNATE_DIALECT:-${DEFAULT_HIBERNATE_DIALECT}}"
-export HIBERNATE_AUTO_UPDATE="${HIBERNATE_AUTO_UPDATE:-"true"}"
+export HIBERNATE_DIALECT_AUTO_UPDATE="${HIBERNATE_DIALECT_AUTO_UPDATE:-"true"}"
 export WAR_PERSISTENCE_XML_PATH="${WAR_PERSISTENCE_XML_PATH:-${DEFAULT_WAR_PERSISTENCE_XML_PATH}}"
 export ONLY_INSTALL_DRIVER="${ONLY_INSTALL_DRIVER:-"false"}"
 
@@ -30,6 +30,7 @@ _load_script_dependencies() {
 
     source "${scriptDir}/hibernate_dialect.sh"
     source "${scriptDir}/path_utils.sh"
+    source "${scriptDir}/war_utils.sh"
     source "${scriptDir}/wildfly_controls.sh"
 }
 
@@ -97,6 +98,7 @@ COMMAND
     _create_postgresql_datasource_profile_script "${buildDir}"
 
     _shutdown_wildfly_server
+    mcount "wildfly.shutdown"
 }
 
 identify_and_update_persistence_unit() {
@@ -111,28 +113,32 @@ identify_and_update_persistence_unit() {
 
         unzip -d "${deploymentsTempDir}" -q "${warFile}" "${WAR_PERSISTENCE_XML_PATH}"
         local persistenceFile="${deploymentsTempDir}/${WAR_PERSISTENCE_XML_PATH}"
+        mcount "persistence.unit.extracted"
 
         datasourceJNDIName="${DATASOURCE_JNDI_NAME:-$(_get_datasource_jndi_name "${persistenceFile}")}"
         datasourceName="${DATASOURCE_NAME:-${datasourceJNDIName##*/}}"
 
-        if _hibernate_auto_update_enabled && [ -f "${persistenceFile}" ]; then
-            local -i updateStart="$(nowms)"
-
+        if _hibernate_dialect_auto_update_enabled && [ -f "${persistenceFile}" ]; then
             update_hibernate_dialect "${persistenceFile}" "${HIBERNATE_DIALECT}"
             update_file_in_war "${warFile}" "${deploymentsTempDir}" "${WAR_PERSISTENCE_XML_PATH}"
 
-            mtime "hibernate.update.time" "${updateStart}"
+            mmeasure "hibernate.dialect.update" "${HIBERNATE_DIALECT}"
         else
             notice_inline "Auto-updating of Hibernate dialect is disabled"
+            mcount "hibernate.dialect.update.disabled"
         fi
 
         rm -rf "${deploymentsTempDir}"
     else
         warning_no_persistence_unit_found "${WAR_PERSISTENCE_XML_PATH}"
+        mcount "no.persistence.unit.found"
     fi
 
     export DATASOURCE_JNDI_NAME="${datasourceJNDIName}"
     export DATASOURCE_NAME="${datasourceName}"
+
+    mmeasure "datasource.name" "${datasourceName}"
+    mmeasure "datasource.jndi.name" "${datasourceJNDIName}"
 }
 
 _verify_postgresql_driver_installation() {
@@ -141,12 +147,11 @@ _verify_postgresql_driver_installation() {
         _wait_until_wildfly_running
     fi
 
-    local -i start="$(nowms)"
-
     status "Verifying PostgreSQL driver installation"
 
     if [ -z "${POSTGRESQL_DRIVER_NAME}" ]; then
         error_postgresql_driver_name_not_set
+        mcount "driver.verification.fail"
         return 1
     fi
 
@@ -158,34 +163,11 @@ _verify_postgresql_driver_installation() {
 COMMAND
     grep -q "\"result\" => \"${POSTGRESQL_DRIVER_NAME}\"" || {
         error_postgresql_driver_not_installed "${POSTGRESQL_DRIVER_NAME}"
+        mcount "driver.verification.fail"
         return 1
     }
 
-    mtime "driver.verification.time" "${start}"
-}
-
-_find_war_with_persistence_unit() {
-    local persistenceFilePath="$1"
-
-    # Return at first match
-    local warFile
-    for warFile in "${JBOSS_HOME}"/standalone/deployments/*.war; do
-        if _war_file_contains_file "${warFile}" "${persistenceFilePath}"; then
-            echo "${warFile}"
-            return
-        fi
-    done
-}
-
-_war_file_contains_file() {
-    local zipFile="$1"
-    local file="$2"
-
-    if [ ! -f "${zipFile}" ]; then
-        return 1
-    fi
-
-    unzip -q -l "${zipFile}" "${file}" >/dev/null
+    mcount "driver.verification.successful"
 }
 
 _only_install_driver_enabled() {
@@ -200,40 +182,16 @@ _only_install_driver_enabled() {
     esac
 }
 
-_hibernate_auto_update_enabled() {
-    case "${HIBERNATE_AUTO_UPDATE}" in
+_hibernate_dialect_auto_update_enabled() {
+    case "${HIBERNATE_DIALECT_AUTO_UPDATE}" in
         true)   return 0 ;;
         false)  return 1 ;;
         *)
-            warning_config_var_invalid_boolean_value "HIBERNATE_AUTO_UPDATE" "true"
-            HIBERNATE_AUTO_UPDATE="true"
+            warning_config_var_invalid_boolean_value "HIBERNATE_DIALECT_AUTO_UPDATE" "true"
+            HIBERNATE_DIALECT_AUTO_UPDATE="true"
             return 0
             ;;
     esac
-}
-
-update_file_in_war() {
-    local warFile="$1"
-    local rootPath="$2"
-    local relativeFile="$3"
-
-    if [ ! -d "${rootPath}" ]; then
-        error_return "Root path needs to be a directory: ${rootPath}"
-        return 1
-    fi
-
-    if [ ! -f "${rootPath}/${relativeFile}" ]; then
-        error_return "Relative file does not exist under root path: ${relativeFile}"
-        return 1
-    fi
-
-    if _is_relative_path "${warFile}"; then
-        warFile="$(_resolve_absolute_path "${warFile}")"
-    fi
-
-    status "Patching '${warFile##*/}' with updated persistence.xml"
-
-    (cd "${rootPath}" && zip -q --update "${warFile}" "${relativeFile}")
 }
 
 _get_datasource_jndi_name() {
@@ -264,5 +222,5 @@ export POSTGRESQL_DATASOURCE_NAME="${POSTGRESQL_DATASOURCE_NAME}"
 export POSTGRESQL_DATASOURCE_JNDI_NAME="${POSTGRESQL_DATASOURCE_JNDI_NAME}"
 SCRIPT
     status_done
-
+    mcount "datasource.profile.script"
 }
