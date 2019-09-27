@@ -98,6 +98,7 @@ download_postgresql_driver() {
     mcount "driver.download.url" "${postgresqlDownloadUrl}"
 
     if ! validate_postgresql_driver_url "${postgresqlDownloadUrl}" "${postgresqlVersion}"; then
+        mcount "driver.download.url.invalid"
         return 1
     fi
 
@@ -110,20 +111,22 @@ download_postgresql_driver() {
     status "Verifying SHA1 checksum"
     local postgresqlSHA1="$(curl --retry 3 --silent --location "${postgresqlDownloadUrl}.sha1")"
     if ! verify_sha1_checksum "${postgresqlSHA1}" "${targetFilename}"; then
+        mcount "driver.sha1.verification.fail"
         return 1
     fi
+    mcount "driver.sha1.verification.success"
 }
 
-# Verifies the SHA-1 checksum that is provided for the WildFly zip file. The
-# checksum needs to be downloaded from the WildFly download page and can be
-# passed to this function in order to check it against the zip file.
+# Verifies the SHA-1 checksum that is provided for the PostgreSQL driver file.
+# The checksum needs to be downloaded from the WildFly download page and can
+# be passed to this function in order to check it against the jar file.
 #
 # Params:
-#   $1:  checksum  the downloaded SHA-1 checksum for the zip file
-#   $2:  file      the path to the zip file
+#   $1:  checksum  the SHA-1 checksum for the jar file
+#   $2:  file      the path to the jar file
 #
 # Returns:
-#   0: The checksum matches the zip file
+#   0: The checksum matches the jar file
 #   1: The checksum is invalid
 verify_sha1_checksum() {
     local checksum="$1"
@@ -141,7 +144,9 @@ detect_postgresql_driver_version() {
     local buildDir="$1"
 
     if [ ! -d "${buildDir}" ]; then
-        error_return "Failed to detect PostgreSQL Driver version: Build directory does not exist: ${buildDir}"
+        # Redirect to stderr so that the error won't be captured
+        # in command substitutions
+        error_return "Failed to detect PostgreSQL Driver version: Build directory does not exist: ${buildDir}" >&2
         return 1
     fi
 
@@ -189,4 +194,5 @@ export POSTGRESQL_DRIVER_VERSION="${POSTGRESQL_DRIVER_VERSION}"
 export POSTGRESQL_DRIVER_NAME="${POSTGRESQL_DRIVER_NAME}"
 SCRIPT
     status_done
+    mcount "driver.profile.script"
 }
