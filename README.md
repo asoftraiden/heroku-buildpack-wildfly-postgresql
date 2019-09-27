@@ -45,6 +45,16 @@ source /tmp/wildfly-postgresql-buildpack/lib/postgresql_driver.sh
 source /tmp/wildfly-postgresql-buildpack/lib/postgresql_datasource.sh
 ```
 
+### Specifying a specific Revision of the Buildpack
+
+You can use another revision of this buildpack for your own one. Simply change the
+buildpack URL and append a version specifier to the filename, for example `v15`.
+Then change the line in your script to the following:
+
+```bash
+WILDFLY_BUILDPACK_URL="https://buildpack-registry.s3.amazonaws.com/buildpacks/mterhart/wildfly-postgresql-v15.tgz"
+```
+
 ## Configuration
 
 ### Config Vars
