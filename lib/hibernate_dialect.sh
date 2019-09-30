@@ -5,7 +5,7 @@ update_hibernate_dialect() {
     local dialect="$2"
 
     if [ ! -f "${persistenceFile}" ]; then
-        error_return "Passed persistence.xml file does not exist: ${persistenceFile}"
+        error_return "Passed persistence file does not exist: ${persistenceFile}"
         return 1
     fi
 
