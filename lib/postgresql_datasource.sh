@@ -160,7 +160,7 @@ _verify_postgresql_driver_installation() {
         return 1
     fi
 
-    _execute_jboss_command_pipable <<COMMAND | tee >(indent >&2) |
+    _execute_jboss_command_pipable <<COMMAND | tee >((indent && echo) >&2) |
 /subsystem=datasources/jdbc-driver=postgresql:read-attribute(
     name=driver-name
 )
