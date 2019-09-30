@@ -16,6 +16,7 @@ _load_script_dependencies() {
 
     source "${scriptDir}/common.sh"
     source "${scriptDir}/errors.sh"
+    source "${scriptDir}/warnings.sh"
 
     source "${scriptDir}/wildfly_controls.sh"
 }
