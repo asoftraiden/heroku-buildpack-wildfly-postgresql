@@ -49,6 +49,8 @@ install_postgresql_datasource() {
         return 1
     fi
 
+    buildDir="$(_resolve_absolute_path "${buildDir}")"
+
     local datasourceConnectionUrl="${2:-${DEFAULT_DATASOURCE_CONNECTION_URL}}"
     local username="${3:-${DEFAULT_DATASOURCE_USERNAME}}"
     local password="${4:-${DEFAULT_DATASOURCE_PASSWORD}}"
@@ -155,8 +157,7 @@ _verify_postgresql_driver_installation() {
         return 1
     fi
 
-    local tty="$(tty)"
-    _execute_jboss_command_pipable <<COMMAND | tee >(indent > "${tty}") |
+    _execute_jboss_command_pipable <<COMMAND | tee >(indent >&2) |
 /subsystem=datasources/jdbc-driver=postgresql:read-attribute(
     name=driver-name
 )
