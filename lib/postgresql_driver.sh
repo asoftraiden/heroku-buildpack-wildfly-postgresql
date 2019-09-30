@@ -16,6 +16,7 @@ _load_script_dependencies() {
 
     source "${scriptDir}/common.sh"
     source "${scriptDir}/errors.sh"
+    source "${scriptDir}/path_utils.sh"
     source "${scriptDir}/warnings.sh"
 
     source "${scriptDir}/wildfly_controls.sh"
@@ -35,6 +36,9 @@ install_postgresql_driver() {
         error_return "Failed to install PostgreSQL Driver: Cache directory does not exist: ${cacheDir}"
         return 1
     fi
+
+    buildDir="$(_resolve_absolute_path "${buildDir}")"
+    cacheDir="$(_resolve_absolute_path "${cacheDir}")"
 
     local postgresqlVersion="${3:-$(detect_postgresql_driver_version "${buildDir}")}"
     mcount "driver.version" "${postgresqlVersion}"
