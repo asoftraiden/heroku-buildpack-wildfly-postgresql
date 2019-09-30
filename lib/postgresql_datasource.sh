@@ -24,10 +24,11 @@ _load_script_dependencies() {
     # Load dependent buildpacks
     source "${scriptDir}/load_buildpacks.sh"
 
-    source "${scriptDir}/common.sh"
+    source "${scriptDir}/debug.sh"
     source "${scriptDir}/errors.sh"
     source "${scriptDir}/warnings.sh"
 
+    source "${scriptDir}/common.sh"
     source "${scriptDir}/hibernate_dialect.sh"
     source "${scriptDir}/path_utils.sh"
     source "${scriptDir}/war_utils.sh"
@@ -49,7 +50,7 @@ install_postgresql_datasource() {
         return 1
     fi
 
-    buildDir="$(_resolve_absolute_path "${buildDir}")"
+    buildDir="$(_resolve_absolute_path "${buildDir}")" && debug_var "buildDir"
 
     local datasourceConnectionUrl="${2:-${DEFAULT_DATASOURCE_CONNECTION_URL}}"
     local username="${3:-${DEFAULT_DATASOURCE_USERNAME}}"
@@ -67,7 +68,7 @@ install_postgresql_datasource() {
     if [ -z "${DATASOURCE_JNDI_NAME}" ] || [ -z "${DATASOURCE_NAME}" ]; then
         identify_and_update_persistence_unit
     fi
-    mtime "datasource.identify.persistence-unit.time" "${identifyStart}"
+    debug_mtime "datasource.identify.persistence-unit.time" "${identifyStart}"
 
     notice "Using following parameters for datasource
   Datasource Name: ${DATASOURCE_NAME}
@@ -92,10 +93,10 @@ data-source add
     --background-validation=true
     --exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLExceptionSorter
 COMMAND
-    mtime "datasource.creation.time" "${datasourceCreationStart}"
+    debug_mtime "datasource.creation.time" "${datasourceCreationStart}"
 
-    export POSTGRESQL_DATASOURCE_NAME="${DATASOURCE_NAME}"
-    export POSTGRESQL_DATASOURCE_JNDI_NAME="${DATASOURCE_JNDI_NAME}"
+    export POSTGRESQL_DATASOURCE_NAME="${DATASOURCE_NAME}" && debug_var "POSTGRESQL_DATASOURCE_NAME"
+    export POSTGRESQL_DATASOURCE_JNDI_NAME="${DATASOURCE_JNDI_NAME}" && debug_var "POSTGRESQL_DATASOURCE_JNDI_NAME"
 
     _create_postgresql_datasource_profile_script "${buildDir}"
 
@@ -113,21 +114,23 @@ identify_and_update_persistence_unit() {
         status "Found Persistence Unit in persistence.xml of deployment '${warFile##*/}'"
         local deploymentsTempDir="$(mktemp -d "/tmp/deployments.XXXXXX")"
 
+        debug_command "unzip -d \"${deploymentsTempDir}\" -q \"${warFile}\" \"${WAR_PERSISTENCE_XML_PATH}\""
         unzip -d "${deploymentsTempDir}" -q "${warFile}" "${WAR_PERSISTENCE_XML_PATH}"
-        local persistenceFile="${deploymentsTempDir}/${WAR_PERSISTENCE_XML_PATH}"
+        local persistenceFile="${deploymentsTempDir}/${WAR_PERSISTENCE_XML_PATH}" && debug_var "persistenceFile"
         mcount "persistence.unit.extracted"
 
-        datasourceJNDIName="${DATASOURCE_JNDI_NAME:-$(_get_datasource_jndi_name "${persistenceFile}")}"
-        datasourceName="${DATASOURCE_NAME:-${datasourceJNDIName##*/}}"
+        datasourceJNDIName="${DATASOURCE_JNDI_NAME:-$(_get_datasource_jndi_name "${persistenceFile}")}" && debug_var "datasourceJNDIName"
+        datasourceName="${DATASOURCE_NAME:-${datasourceJNDIName##*/}}" && debug_var "datasourceName"
 
         if _hibernate_dialect_auto_update_enabled && [ -f "${persistenceFile}" ]; then
+            debug_mmeasure "hibernate.dialect.auto-update" "enabled"
+            debug_mmeasure "hibernate.dialect.class" "${HIBERNATE_DIALECT}"
+
             update_hibernate_dialect "${persistenceFile}" "${HIBERNATE_DIALECT}"
             update_file_in_war "${warFile}" "${deploymentsTempDir}" "${WAR_PERSISTENCE_XML_PATH}"
-
-            mmeasure "hibernate.dialect.update" "${HIBERNATE_DIALECT}"
         else
             notice_inline "Auto-updating of Hibernate dialect is disabled"
-            mcount "hibernate.dialect.update.disabled"
+            debug_mmeasure "hibernate.dialect.auto-update" "disabled"
         fi
 
         rm -rf "${deploymentsTempDir}"
@@ -139,8 +142,8 @@ identify_and_update_persistence_unit() {
     export DATASOURCE_JNDI_NAME="${datasourceJNDIName}"
     export DATASOURCE_NAME="${datasourceName}"
 
-    mmeasure "datasource.name" "${datasourceName}"
-    mmeasure "datasource.jndi.name" "${datasourceJNDIName}"
+    debug_mmeasure "datasource.name" "${datasourceName}"
+    debug_mmeasure "datasource.jndi.name" "${datasourceJNDIName}"
 }
 
 _verify_postgresql_driver_installation() {
@@ -177,7 +180,7 @@ _only_install_driver_enabled() {
         false)  return 1 ;;
         *)
             warning_config_var_invalid_boolean_value "ONLY_INSTALL_DRIVER" "false"
-            ONLY_INSTALL_DRIVER="false"
+            export ONLY_INSTALL_DRIVER="false"
             return 1
             ;;
     esac
@@ -189,7 +192,7 @@ _hibernate_dialect_auto_update_enabled() {
         false)  return 1 ;;
         *)
             warning_config_var_invalid_boolean_value "HIBERNATE_DIALECT_AUTO_UPDATE" "true"
-            HIBERNATE_DIALECT_AUTO_UPDATE="true"
+            export HIBERNATE_DIALECT_AUTO_UPDATE="true"
             return 0
             ;;
     esac
@@ -224,4 +227,5 @@ export POSTGRESQL_DATASOURCE_JNDI_NAME="${POSTGRESQL_DATASOURCE_JNDI_NAME}"
 SCRIPT
     status_done
     mcount "datasource.profile.script"
+    debug_file "${profileScript}"
 }

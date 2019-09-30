@@ -31,6 +31,8 @@ _execute_jboss_command() {
 
     [ -n "${statusMessage}" ] && status "${statusMessage}..."
 
+    debug_jboss_command "${command}"
+
     "${JBOSS_CLI}" --connect --command="${command}" | indent
     local exitStatus="${PIPESTATUS[0]}"
 
@@ -43,7 +45,9 @@ _execute_jboss_command() {
 
 _execute_jboss_command_pipable() {
     if [ -t 0 ]; then
-        error_return "JBoss command on stdin expected. Use a heredoc to specify it."
+        # Redirect error message to stderr to enable piping stdout
+        # to another process
+        error_return "JBoss command on stdin expected. Use a heredoc to specify it." >&2
         return 1
     fi
 
@@ -59,10 +63,16 @@ _execute_jboss_command_pipable() {
     local command
     read -r -d '' command || true
 
+    # Redirect debug message to stderr to enable piping stdout to
+    # another process
+    debug_jboss_command "${command}" >&2
+
     "${JBOSS_CLI}" --connect --command="${command}"
     local exitStatus="$?"
 
     if [ "${exitStatus}" -ne 0 ]; then
+        # Redirect error message to stderr to enable piping stdout
+        # to another process
         error_return "JBoss command failed with exit code ${exitStatus}" >&2
     fi
 
@@ -93,6 +103,7 @@ _shutdown_wildfly_server() {
 }
 
 _shutdown_on_error() {
+    debug "Registering ERR trap for shutting down WildFly server on error"
     trap '_shutdown_wildfly_server; exit 1' ERR
 }
 
@@ -100,13 +111,15 @@ _load_wildfly_environment_variables() {
     local buildDir="$1"
 
     if [ -d "${buildDir}/.jboss" ] && [ -z "${JBOSS_HOME}" ]; then
-        # Expand the Wildfly directory with a glob to get the directory name
+        # Expand the WildFly directory with a glob to get the directory name
         # and version
         local wildflyDir=("${buildDir}"/.jboss/wildfly-*)
         if [ "${#wildflyDir[@]}" -eq 1 ] && [ -d "${wildflyDir[0]}" ]; then
-            export JBOSS_HOME="${JBOSS_HOME:-"${wildflyDir[0]}"}"
-            export JBOSS_CLI="${JBOSS_CLI:-"${JBOSS_HOME}/bin/jboss-cli.sh"}"
-            export WILDFLY_VERSION="${WILDFLY_VERSION:-"${JBOSS_HOME#*wildfly-}"}"
+            debug "WildFly installation found at '${wildflyDir[0]}'"
+
+            export JBOSS_HOME="${JBOSS_HOME:-"${wildflyDir[0]}"}" && debug_var "JBOSS_HOME"
+            export JBOSS_CLI="${JBOSS_CLI:-"${JBOSS_HOME}/bin/jboss-cli.sh"}" && debug_var "JBOSS_CLI"
+            export WILDFLY_VERSION="${WILDFLY_VERSION:-"${JBOSS_HOME#*wildfly-}"}" && debug_var "WILDFLY_VERSION"
         fi
     fi
 

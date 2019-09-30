@@ -14,10 +14,12 @@ _load_script_dependencies() {
     # Load dependent buildpacks
     source "${scriptDir}/load_buildpacks.sh"
 
-    source "${scriptDir}/common.sh"
+    source "${scriptDir}/debug.sh"
     source "${scriptDir}/errors.sh"
-    source "${scriptDir}/path_utils.sh"
     source "${scriptDir}/warnings.sh"
+
+    source "${scriptDir}/common.sh"
+    source "${scriptDir}/path_utils.sh"
 
     source "${scriptDir}/wildfly_controls.sh"
 }
@@ -37,11 +39,11 @@ install_postgresql_driver() {
         return 1
     fi
 
-    buildDir="$(_resolve_absolute_path "${buildDir}")"
-    cacheDir="$(_resolve_absolute_path "${cacheDir}")"
+    buildDir="$(_resolve_absolute_path "${buildDir}")" && debug_var "buildDir"
+    cacheDir="$(_resolve_absolute_path "${cacheDir}")" && debug_var "cacheDir"
 
     local postgresqlVersion="${3:-$(detect_postgresql_driver_version "${buildDir}")}"
-    mcount "driver.version" "${postgresqlVersion}"
+    debug_mmeasure "driver.version" "${postgresqlVersion}"
 
     local postgresqlDriverJar="postgresql-${postgresqlVersion}.jar"
 
@@ -60,8 +62,8 @@ install_postgresql_driver() {
     _create_postgresql_driver_module "${moduleName}" "${cacheDir}/${postgresqlDriverJar}"
     _install_postgresql_jdbc_driver "${moduleName}" "${postgresqlVersion}"
 
-    export POSTGRESQL_DRIVER_NAME="${POSTGRESQL_DRIVER_NAME:-${DEFAULT_POSTGRESQL_DRIVER_NAME}}"
-    export POSTGRESQL_DRIVER_VERSION="${postgresqlVersion}"
+    export POSTGRESQL_DRIVER_NAME="${POSTGRESQL_DRIVER_NAME:-${DEFAULT_POSTGRESQL_DRIVER_NAME}}" && debug_var "POSTGRESQL_DRIVER_NAME"
+    export POSTGRESQL_DRIVER_VERSION="${postgresqlVersion}" && debug_var "POSTGRESQL_DRIVER_VERSION"
 
     _create_postgresql_driver_profile_script "${buildDir}"
 }
@@ -77,7 +79,7 @@ module add
     --resources=${postgresqlDriverPath}
     --dependencies=javax.api,javax.transaction.api
 COMMAND
-    mtime "driver.module.creation.time" "${start}"
+    debug_mtime "driver.module.creation.time" "${start}"
 }
 
 _install_postgresql_jdbc_driver() {
@@ -92,7 +94,7 @@ _install_postgresql_jdbc_driver() {
     driver-xa-datasource-class-name=org.postgresql.xa.PGXADataSource
 )
 COMMAND
-    mtime "driver.installation.time" "${start}"
+    debug_mtime "driver.installation.time" "${start}"
 }
 
 download_postgresql_driver() {
@@ -100,7 +102,7 @@ download_postgresql_driver() {
     local targetFilename="$2"
 
     local postgresqlDownloadUrl="$(_get_postgresql_driver_url "${postgresqlVersion}")"
-    mcount "driver.download.url" "${postgresqlDownloadUrl}"
+    debug_mmeasure "driver.download.url" "${postgresqlDownloadUrl}"
 
     if ! validate_postgresql_driver_url "${postgresqlDownloadUrl}" "${postgresqlVersion}"; then
         mcount "driver.download.url.invalid"
@@ -111,7 +113,7 @@ download_postgresql_driver() {
     status_pending "Downloading PostgreSQL JDBC Driver ${postgresqlVersion} to cache"
     curl --retry 3 --silent --location --output "${targetFilename}" "${postgresqlDownloadUrl}"
     status_done
-    mtime "driver.download.time" "${downloadStart}"
+    debug_mtime "driver.download.time" "${downloadStart}"
 
     status "Verifying SHA1 checksum"
     local postgresqlSHA1="$(curl --retry 3 --silent --location "${postgresqlDownloadUrl}.sha1")"
@@ -200,4 +202,5 @@ export POSTGRESQL_DRIVER_NAME="${POSTGRESQL_DRIVER_NAME}"
 SCRIPT
     status_done
     mcount "driver.profile.script"
+    debug_file "${profileScript}"
 }

@@ -44,6 +44,7 @@ update_file_in_war() {
     fi
 
     status "Patching '${warFile##*/}' with updated persistence.xml"
+    debug_command "zip -q --update \"${warFile}\" \"${relativeFile}\""
 
     (cd "${rootPath}" && zip -q --update "${warFile}" "${relativeFile}")
 }
