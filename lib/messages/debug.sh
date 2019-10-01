@@ -2,7 +2,7 @@
 #
 # shellcheck disable=SC2155
 
-export DEBUG="${DEBUG:-"false"}"
+export BUILDPACK_DEBUG="${BUILDPACK_DEBUG:-"false"}"
 
 debug() {
     if _debug_enabled; then
@@ -102,10 +102,10 @@ indent_num() {
 }
 
 _check_debug_config_var_value() {
-    case "${DEBUG}" in
+    case "${BUILDPACK_DEBUG}" in
         true | false) ;;
         *)
-            warning_config_var_invalid_boolean_value "DEBUG" "false"
+            warning_config_var_invalid_boolean_value "BUILDPACK_DEBUG" "false"
             export DEBUG="false"
     esac
 }
