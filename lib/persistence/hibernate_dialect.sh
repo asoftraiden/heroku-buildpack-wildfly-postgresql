@@ -50,16 +50,21 @@ validate_hibernate_dialect() {
     local hibernateDocsBaseUrl="https://docs.jboss.org/hibernate/orm/current/javadocs"
     local referenceUrl="${hibernateDocsBaseUrl}/org/hibernate/dialect/package-summary.html"
 
+    # Check if the dialect has the correct namespace
     if ! [[ "${dialect}" =~ ^org\.hibernate\.dialect ]]; then
         error_invalid_hibernate_dialect_namespace "${dialect}" "${referenceUrl}"
         return 1
     fi
 
+    # Check if the dialect is a PostgreSQL dialect
     if ! [[ "${dialect}" =~ PostgreSQL[8-9]?[0-5]?Dialect$ ]]; then
         error_not_a_postgresql_dialect "${dialect}" "${referenceUrl}"
         return 1
     fi
 
+    # Check if the dialect exists. This is done by checking whether
+    # the documentation webpage for the dialect exists. It does not
+    # exist if the URL status is 404 Not Found.
     local docsUrl="${hibernateDocsBaseUrl}/${dialect//.//}.html"
     if [ "$(_get_url_status "${docsUrl}")" != "200" ]; then
         error_unsupported_hibernate_dialect "${dialect}" "${referenceUrl}"
