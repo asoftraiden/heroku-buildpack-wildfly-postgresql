@@ -30,6 +30,14 @@ write_error() {
     error_return "${errorMessage}"
 }
 
+# Writes an error message about an unsupported PostgreSQL Driver version.
+#
+# Params:
+#   $1:  version         the configured driver version
+#   $2:  defaultVersion  the default driver version
+#
+# Returns:
+#   always 1
 error_unsupported_postgresql_driver_version() {
     local version="$1"
     local defaultVersion="$2"
@@ -46,6 +54,10 @@ the default version ${defaultVersion}.
 ERROR
 }
 
+# Writes an error message about an unset PostgreSQL driver name.
+#
+# Returns:
+#   always 1
 error_postgresql_driver_name_not_set() {
     write_error <<ERROR
 PostgreSQL driver name is not set
@@ -57,6 +69,14 @@ config var.
 ERROR
 }
 
+# Writes an error message about a missing installation of the PostgreSQL
+# driver.
+#
+# Params:
+#   $1:  driverName  the name of the driver assumed to be installed
+#
+# Returns:
+#   always 1
 error_postgresql_driver_not_installed() {
     local driverName="$1"
 
@@ -71,6 +91,14 @@ POSTGRESQL_DRIVER_NAME config var.
 ERROR
 }
 
+# Writes an error message about an invalid Hibernate dialect namespace.
+#
+# Params:
+#   $1:  dialect       the configured Hibernate dialect
+#   $2:  referenceUrl  the URL to the Hibernate dialect reference
+#
+# Returns:
+#   always 1
 error_invalid_hibernate_dialect_namespace() {
     local dialect="$1"
     local referenceUrl="$2"
@@ -84,6 +112,15 @@ ${referenceUrl}
 ERROR
 }
 
+# Writes an error message about a Hibernate dialect not applicable for
+# PostgreSQL databases.
+#
+# Params:
+#   $1:  dialect       the configured Hibernate dialect
+#   $2:  referenceUrl  the URL to the Hibernate dialect reference
+#
+# Returns:
+#   always 1
 error_not_a_postgresql_dialect() {
     local dialect="$1"
     local referenceUrl="$2"
@@ -100,6 +137,14 @@ ${referenceUrl}
 ERROR
 }
 
+# Writes an error message about an unsupported Hibernate dialect.
+#
+# Params:
+#   $1:  dialect       the configured Hibernate dialect
+#   $2:  referenceUrl  the URL to the Hibernate dialect reference
+#
+# Returns:
+#   always 1
 error_unsupported_hibernate_dialect() {
     local dialect="$1"
     local referenceUrl="$2"
@@ -113,6 +158,11 @@ ${referenceUrl}
 ERROR
 }
 
+# Writes an error message about an unset JBOSS_HOME environment
+# variable.
+#
+# Returns:
+#   always 1
 error_jboss_home_not_set() {
     write_error <<ERROR
 JBOSS_HOME not set or not existing
