@@ -22,17 +22,17 @@ _load_script_dependencies() {
     local scriptDir="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 
     # Load dependent buildpacks
-    source "${scriptDir}/load_buildpacks.sh"
+    source "${scriptDir}/vendor/load_buildpacks.sh"
 
-    source "${scriptDir}/debug.sh"
-    source "${scriptDir}/errors.sh"
-    source "${scriptDir}/warnings.sh"
+    source "${scriptDir}/messages/debug.sh"
+    source "${scriptDir}/messages/errors.sh"
+    source "${scriptDir}/messages/warnings.sh"
 
-    source "${scriptDir}/common.sh"
-    source "${scriptDir}/hibernate_dialect.sh"
-    source "${scriptDir}/path_utils.sh"
-    source "${scriptDir}/war_utils.sh"
-    source "${scriptDir}/wildfly_controls.sh"
+    source "${scriptDir}/util/common.sh"
+    source "${scriptDir}/persistence/hibernate_dialect.sh"
+    source "${scriptDir}/util/path_utils.sh"
+    source "${scriptDir}/util/war_utils.sh"
+    source "${scriptDir}/wildfly/wildfly_controls.sh"
 }
 
 _load_script_dependencies

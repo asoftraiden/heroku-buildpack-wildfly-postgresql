@@ -39,7 +39,7 @@ curl --retry 3 --silent --location "${JVM_COMMON_BUILDPACK_URL}" | tar xzm -C "$
 source "${JVM_COMMON_DIR}/bin/util"
 
 # Load the main buildpack scripts
-source "${BP_DIR}/lib/environment.sh"
+source "${BP_DIR}/lib/env/environment.sh"
 source "${BP_DIR}/lib/postgresql_driver.sh"
 source "${BP_DIR}/lib/postgresql_datasource.sh"
 
