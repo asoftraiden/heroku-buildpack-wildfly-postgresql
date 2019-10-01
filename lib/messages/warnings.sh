@@ -1,5 +1,16 @@
 #!/usr/bin/env bash
 
+# Writes a formatted warning message provided on stdin to the standard
+# output and resumes the build execution. If no input is provided on
+# stdin the function produces an error and exits.
+#
+# Input:
+#   stdin:  the warning message
+#
+# Returns:
+#   stdout: the formatted warning message
+#   0: The warning message was written to stdout
+#   1: The warning message was not supplied on stdin
 write_warning() {
     if [ -t 0 ]; then
         error "Warning message on stdin expected. Use a heredoc to write it."
@@ -20,6 +31,11 @@ write_warning() {
     warning "${warningMessage}"
 }
 
+# Writes a warning message about the 'errexit' Shell option being not
+# set.
+#
+# Returns:
+#   always 0
 warning_errexit_not_set() {
     write_warning << WARNING
 'errexit' Shell option not set
@@ -30,6 +46,11 @@ on errors and may cause undesired results.
 WARNING
 }
 
+# Writes a warning message about the 'errtrace' Shell option being not
+# set.
+#
+# Returns:
+#   always 0
 warning_errtrace_not_set() {
     write_warning <<WARNING
 'errtrace' Shell option not set
@@ -45,6 +66,14 @@ to shutdown the WildFly server after an error.
 WARNING
 }
 
+# Writes a warning message about a missing persistence unit.
+#
+# Params:
+#   $1:  warPersistencePath  the path inside the WAR file to the
+#                            persistence.xml file
+#
+# Returns:
+#   always 0
 warning_no_persistence_unit_found() {
     local warPersistencePath="$1"
 
@@ -62,6 +91,15 @@ Ensure that your path is relative to the root of the WAR archive.
 WARNING
 }
 
+# Writes a warning message about a boolean config var having an
+# invalid value other than 'true' or 'false'.
+#
+# Params:
+#   $1:  configVar     the name of the config var
+#   $2:  defaultValue  the default value of the config var
+#
+# Returns:
+#   always 0
 warning_config_var_invalid_boolean_value() {
     local configVar="$1"
     local defaultValue="$2"
