@@ -211,6 +211,11 @@ _shutdown_on_error() {
 _load_wildfly_environment_variables() {
     local buildDir="$1"
 
+    debug "WildFly environment variables prior to locating installation"
+    debug_var "JBOSS_HOME"
+    debug_var "JBOSS_CLI"
+    debug_var "WILDFLY_VERSION"
+
     if [ -d "${buildDir}/.jboss" ] && [ -z "${JBOSS_HOME}" ]; then
         # Expand the WildFly directory with a glob to get the directory name
         # and version
