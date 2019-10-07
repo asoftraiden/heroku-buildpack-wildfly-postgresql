@@ -11,16 +11,18 @@
 # Params:
 #   $1:  persistenceFilePath  the path to the persistence file
 #                             relative to the root of the WAR file
+#   $2:  jbossHome            WildFly home directory
 #
 # Returns:
 #   stdout: the path to the WAR file containing the persistence
 #           unit
 _find_war_with_persistence_unit() {
     local persistenceFilePath="$1"
+    local jbossHome="$2"
 
     # Return at first match
     local warFile
-    for warFile in "${JBOSS_HOME}"/standalone/deployments/*.war; do
+    for warFile in "${jbossHome}"/standalone/deployments/*.war; do
         if _war_file_contains_file "${warFile}" "${persistenceFilePath}"; then
             echo "${warFile}"
             return
