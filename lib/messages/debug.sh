@@ -103,7 +103,11 @@ debug_file() {
 
         echo
         debug "Contents of File ${file}:"
-        indent_num 9 < "${file}"
+        if [ -f "${file}" ]; then
+            indent_num 9 < "${file}"
+        else
+            indent_num 9 <<< "<not existing>"
+        fi
         echo
     fi
 }
