@@ -14,16 +14,20 @@ _load_script_dependencies() {
     # Load dependent buildpacks
     source "${scriptDir}/vendor/load_buildpacks.sh"
 
+    # Load output messages
     source "${scriptDir}/messages/debug.sh"
     source "${scriptDir}/messages/errors.sh"
     source "${scriptDir}/messages/warnings.sh"
 
+    # Load utilities
     source "${scriptDir}/util/common.sh"
     source "${scriptDir}/util/path_utils.sh"
 
+    # Load WildFly controls
     source "${scriptDir}/wildfly/wildfly_controls.sh"
 }
 
+# Load other script files and unset the function
 _load_script_dependencies
 unset -f _load_script_dependencies
 
