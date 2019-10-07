@@ -63,8 +63,8 @@ WILDFLY_BUILDPACK_URL="https://buildpack-registry.s3.amazonaws.com/buildpacks/mt
 |:--------:|:-----------------:|:----------------|
 | `DATASOURCE_NAME`  | `appDS` | The name of the PostgreSQL datasource |
 | `DATASOURCE_JNDI_NAME` | `java:jboss/datasources/appDS` | The JNDI name of the persistence unit defined in `persistence.xml`. Overrides the value automatically read from `persistence.xml`. |
+| `SKIP_DATASOURCE` | `false` | When set to `true` this buildpack will only install the driver and skip the datasource creation for WildFly. |
 | `POSTGRESQL_DRIVER_NAME` | `postgresql` | |
-| `ONLY_INSTALL_DRIVER` | `false` | When set to `true` this buildpack will only install the driver and not create the datasource for WildFly. |
 | `WAR_PERSISTENCE_XML_PATH` | unset |  |
 | `JBOSS_HOME` | automatically set | The path to the WildFly home directory |
 | `HIBERNATE_DIALECT_AUTO_UPDATE` | `true` | When set to `true` the auto update for the Hibernate dialect in the `persistence.xml` is disabled. |
