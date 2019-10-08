@@ -52,7 +52,7 @@ buildpack URL and append a version specifier to the filename, for example `v15`.
 Then change the line in your script to the following:
 
 ```bash
-WILDFLY_BUILDPACK_URL="https://buildpack-registry.s3.amazonaws.com/buildpacks/mterhart/wildfly-postgresql-v15.tgz"
+WILDFLY_POSTGRESQL_BUILDPACK_URL="https://buildpack-registry.s3.amazonaws.com/buildpacks/mterhart/wildfly-postgresql-v15.tgz"
 ```
 
 ## Configuration
