@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # bin/release <build-dir>
 
+# Add the Heroku Postgres Add-on to the application
+# to provision a PostgreSQL database
 cat <<EOF
 ---
 addons:
