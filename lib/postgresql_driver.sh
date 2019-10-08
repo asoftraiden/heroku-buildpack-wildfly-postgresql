@@ -1,12 +1,62 @@
 #!/usr/bin/env bash
 #
+# This script provides useful functionalities for the installation
+# of the PostgreSQL JDBC driver at the WildFly server. The driver
+# is downloaded in a customizable version and added to the server
+# as a module before it is installed finally.
+#
+# The driver version can be configured using the property
+# 'postgresql.driver.version' in the system.properties file. The
+# specified version is validated so that the driver can be downloaded
+# accordingly.
+#
+# The PostgreSQL driver name is defined during installation which
+# is required for the datasource creation. It is stored in the
+# POSTGRESQL_DRIVER_NAME environment variable which can also be
+# used as a config var to set a custom driver name.
+#
+# The driver name and version are stored in environment variables
+# and written to a .profile.d script which is read during dyno
+# startup.
+#
+# This script uses a builtin dependency management. All dependent scripts
+# and buildpacks are loaded and sourced at the beginning of this file to
+# prevent overriding functions defined here.
+#
+# === Note for Buildpack creators ===
+#
+# When sourcing this script it is recommended to use 'set -e' to abort
+# execution on any command exiting with a non-zero exit status so that
+# execution will not continue on an error. The 'set -E' (note the uppercase
+# 'E') option is also recommended for ERR traps to be active in functions
+# called from other functions (subfunctions). This script uses an ERR
+# trap to shutdown the WildFly server after an error.
+#
 # shellcheck disable=SC1090,SC2155
+
+# ------------------------------------------
+### DEFAULTS
+# ------------------------------------------
 
 DEFAULT_POSTGRESQL_DRIVER_NAME="postgresql"
 DEFAULT_POSTGRESQL_DRIVER_VERSION="42.2.8"
 
+# ------------------------------------------
+### CONFIG VARS
+# ------------------------------------------
+
 export POSTGRESQL_DRIVER_NAME="${POSTGRESQL_DRIVER_NAME:-${DEFAULT_POSTGRESQL_DRIVER_NAME}}"
 
+# ------------------------------------------
+### DEPENDENCIES
+# ------------------------------------------
+
+# Loads the scripts from the lib/ directory and other buildpacks that
+# this script depends on. The inherited functions are used throughout
+# this and other scripts of this buildpack.
+#
+# Returns:
+#   always 0
 _load_script_dependencies() {
     # Get absolute path of script directory
     local scriptDir="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
@@ -31,6 +81,25 @@ _load_script_dependencies() {
 _load_script_dependencies
 unset -f _load_script_dependencies
 
+# ------------------------------------------
+### FUNCTIONS
+# ------------------------------------------
+
+# Installs the PostgreSQL JDBC driver to the WildFly server. The driver
+# is downloaded and cached between builds and is added as a module to
+# the running WildFly server. The driver is then installed as a JDBC
+# driver to the server. The driver version can be configured by the
+# 'postgresql.driver.version' property in the system.properties file.
+# If not specified, the default version will be taken. The function
+# also creates a .profile.d script for environment variables.
+#
+# Params:
+#   $1:  buildDir  The Heroku build directory
+#   $2:  cachedir  The Heroku cache directory
+#
+# Returns:
+#   0: The driver was installed successfully
+#   1: An unexpected error occurred
 install_postgresql_driver() {
     local buildDir="$1"
     local cacheDir="$2"
@@ -43,14 +112,17 @@ install_postgresql_driver() {
         return 1
     fi
 
+    # Resolve absolute paths of build and cache directories
     buildDir="$(_resolve_absolute_path "${buildDir}")" && debug_var "buildDir"
     cacheDir="$(_resolve_absolute_path "${cacheDir}")" && debug_var "cacheDir"
 
+    # Detect the configured driver version
     local postgresqlVersion="${3:-$(detect_postgresql_driver_version "${buildDir}")}"
     debug_mmeasure "driver.version" "${postgresqlVersion}"
 
     local postgresqlDriverJar="postgresql-${postgresqlVersion}.jar"
 
+    # Download the driver if not cached yet
     if [ ! -f "${cacheDir}/${postgresqlDriverJar}" ]; then
         download_postgresql_driver "${postgresqlVersion}" "${cacheDir}/${postgresqlDriverJar}"
     else
@@ -62,6 +134,8 @@ install_postgresql_driver() {
     _check_error_options_set
     _shutdown_on_error
 
+    # Create the driver module and install the driver
+    # at the WildFly server
     local moduleName="org.postgresql"
     _create_postgresql_driver_module "${moduleName}" "${cacheDir}/${postgresqlDriverJar}"
     _install_postgresql_jdbc_driver "${moduleName}" "${postgresqlVersion}"
@@ -72,6 +146,16 @@ install_postgresql_driver() {
     _create_postgresql_driver_profile_script "${buildDir}"
 }
 
+# Creates a module for the PostgreSQL driver at the WildFly server for
+# use with a JDBC driver resource.
+#
+# Params:
+#   $1:  moduleName            the name of the new module
+#   $2:  postgresqlDriverPath  path to the driver jar file
+#
+# Returns:
+#   0: The module was created successfully
+#   1: The module could not be created due to an error
 _create_postgresql_driver_module() {
     local moduleName="$1"
     local postgresqlDriverPath="$2"
@@ -86,6 +170,17 @@ COMMAND
     debug_mtime "driver.module.creation.time" "${start}"
 }
 
+# Installs the PostgreSQL JDBC driver to the WildFly server by creating
+# a JDBC driver resource at the server. The driver module is required
+# for the driver resource and needs to be supplied for the installation.
+#
+# Params:
+#   $1:  moduleName         The name of the driver module
+#   $2:  postgresqlVersion  The version of the PostgreSQL driver
+#
+# Returns:
+#   0: The JDBC driver was installed successfully
+#   1: The driver could not be installed due to an error
 _install_postgresql_jdbc_driver() {
     local moduleName="$1"
     local postgresqlVersion="$2"
@@ -101,6 +196,19 @@ COMMAND
     debug_mtime "driver.installation.time" "${start}"
 }
 
+# Downloads the PostgreSQL JDBC driver in a specific version to a
+# specified destination. The specified version is checked by
+# validating the download url and the SHA-1 checksum is verified
+# for the downloaded jar file.
+#
+# Params:
+#   $1:  postgresqlVersion  the driver version to download
+#   $2:  targetFilename     the file to write the driver to
+#
+# Returns:
+#   0: The driver was downloaded and verified successfully
+#   1: The specified version is invalid or the SHA-1 checksum
+#      verification failed
 download_postgresql_driver() {
     local postgresqlVersion="$1"
     local targetFilename="$2"
@@ -129,8 +237,8 @@ download_postgresql_driver() {
 }
 
 # Verifies the SHA-1 checksum that is provided for the PostgreSQL driver file.
-# The checksum needs to be downloaded from the WildFly download page and can
-# be passed to this function in order to check it against the jar file.
+# The checksum needs to be downloaded first and can then be passed to this
+# function in order to check it against the jar file.
 #
 # Params:
 #   $1:  checksum  the SHA-1 checksum for the jar file
@@ -151,6 +259,18 @@ verify_sha1_checksum() {
     return 0
 }
 
+# Detects the configured version for the PostgreSQL driver or chooses
+# the default driver version if not configured. The version can be
+# configured by the property 'postgresql.driver.version' in the
+# system.properties file.
+#
+# Params:
+#   $1:  buildDir  The Heroku build directory
+#
+# Returns:
+#   stdout: the detected PostgreSQL driver version
+#   0: The driver version was detected successfully
+#   1: The build directory does not exist
 detect_postgresql_driver_version() {
     local buildDir="$1"
 
@@ -174,6 +294,17 @@ detect_postgresql_driver_version() {
     fi
 }
 
+# Validates the download url of the PostgreSQL driver by checking
+# for the HTTP response code 200. If the download url returns a 404
+# code the specified driver version does not exist.
+#
+# Params:
+#   $1:  postgresqlUrl      the download url to validate
+#   $2:  postgresqlVersion  the specified driver version
+#
+# Returns:
+#   0: The download url points to an existing jar file
+#   1: The specified driver version is undefined
 validate_postgresql_driver_url() {
     local postgresqlUrl="$1"
     local postgresqlVersion="$2"
@@ -184,6 +315,14 @@ validate_postgresql_driver_url() {
     fi
 }
 
+# Returns the download url for the PostgreSQL driver of a specific
+# version.
+#
+# Params:
+#   $1:  postgresqlVersion  the driver version to use
+#
+# Returns:
+#   stdout: the PostgreSQL driver download url
 _get_postgresql_driver_url() {
     local postgresqlVersion="$1"
 
@@ -193,6 +332,14 @@ _get_postgresql_driver_url() {
     echo "${postgresqlDownloadUrl}"
 }
 
+# Creates a .profile.d script to load the environment variables
+# for the PostgreSQL driver on application startup.
+#
+# Params:
+#   $1:  buildDir  The Heroku build directory
+#
+# Returns:
+#   exit code and a new .profile.d script
 _create_postgresql_driver_profile_script() {
     local buildDir="$1"
     local profileScript="${buildDir}/.profile.d/wildfly-postgresql.sh"
