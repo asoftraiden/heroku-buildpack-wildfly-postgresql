@@ -1,21 +1,76 @@
 #!/usr/bin/env bash
 #
+# This script provides useful functions to install a PostgreSQL datasource
+# to an existing WildFly server and is part of the Heroku WildFly PostgreSQL
+# buildpack. The new datasource can be parameterized by a connection url, a
+# username and password supplied through function parameters. The name for
+# the datasource and the JNDI name are obtained from the application's
+# persistence unit automatically, but may be customized through config vars.
+#
+# The script looks for a persistence unit in the WAR files deployed to the
+# WildFly server to extract the JNDI name and to update the Hibernate dialect
+# to a PostgreSQL dialect compatible to PostgreSQL databases. Subsequently,
+# the WAR file is patched with the updated persistence unit.
+#
+# The buildpack adds the Heroku Postgres Add-on to the application and thus
+# automatically provisions a PostgreSQL database on Heroku. The connection
+# url, username and password are provided in the JDBC_DATABASE_URL,
+# JDBC_DATABASE_USERNAME and JDBC_DATABASE_PASSWORD environment variables
+# which are used in the datasource by default. Nevertheless, the Heroku
+# application may use another provider for PostgreSQL databases by supplying
+# a custom connection url.
+#
+# The buildpack execution can be customized via several config vars which
+# are displayed below. These are described in the buildpack's README.md file.
+# For example, the Hibernate dialect that is updated can be altered using
+# the HIBERNATE_DIALECT config var. Datasource creation can be completely
+# skipped with the SKIP_DATASOURCE config var.
+#
+# This script uses a builtin dependency management. All dependent scripts
+# and buildpacks are loaded and sourced at the beginning of this file to
+# prevent overriding functions defined here.
+#
+# === Note for Buildpack creators ===
+#
+# When sourcing this script it is recommended to use 'set -e' to abort
+# execution on any command exiting with a non-zero exit status so that
+# execution will not continue on an error. The 'set -E' (note the uppercase
+# 'E') option is also recommended for ERR traps to be active in functions
+# called from other functions (subfunctions). This script uses an ERR
+# trap to shutdown the WildFly server after an error.
+#
 # shellcheck disable=SC1090,SC2155
 
-# By default, read connection URL, username and password from environment
-# variables provided by the Heroku Postgres Add-on
+# ------------------------------------------
+### DEFAULTS
+# ------------------------------------------
+
+# Default values for config vars
+
 DEFAULT_DATASOURCE_JNDI_NAME="java:jboss/datasources/appDS"
-DEFAULT_DATASOURCE_CONNECTION_URL="\${env.JDBC_DATABASE_URL:}"
-DEFAULT_DATASOURCE_USERNAME="\${env.JDBC_DATABASE_USERNAME:}"
-DEFAULT_DATASOURCE_PASSWORD="\${env.JDBC_DATABASE_PASSWORD:}"
+
+# By default, read connection url, username and password from the
+# JDBC_DATABASE_URL, JDBC_DATABASE_USERNAME and JDBC_DATABASE_PASSWORD
+# environment variables provided by the Heroku Postgres Add-on.
+DEFAULT_DATASOURCE_CONNECTION_URL="\${env.JDBC_DATABASE_URL:postgresql://localhost:5432}"
+DEFAULT_DATASOURCE_USERNAME="\${env.JDBC_DATABASE_USERNAME:root}"
+DEFAULT_DATASOURCE_PASSWORD="\${env.JDBC_DATABASE_PASSWORD:root}"
 
 DEFAULT_WAR_PERSISTENCE_XML_PATH="WEB-INF/classes/META-INF/persistence.xml"
 DEFAULT_HIBERNATE_DIALECT="org.hibernate.dialect.PostgreSQL95Dialect"
+
+# ------------------------------------------
+### CONFIG VARS
+# ------------------------------------------
 
 export HIBERNATE_DIALECT="${HIBERNATE_DIALECT:-${DEFAULT_HIBERNATE_DIALECT}}"
 export HIBERNATE_DIALECT_AUTO_UPDATE="${HIBERNATE_DIALECT_AUTO_UPDATE:-"true"}"
 export WAR_PERSISTENCE_XML_PATH="${WAR_PERSISTENCE_XML_PATH:-${DEFAULT_WAR_PERSISTENCE_XML_PATH}}"
 export SKIP_DATASOURCE="${SKIP_DATASOURCE:-"false"}"
+
+# ------------------------------------------
+### DEPENDENCIES
+# ------------------------------------------
 
 # Loads the scripts from the lib/ directory and other buildpacks that
 # this script depends on. The inherited functions are used throughout
@@ -48,6 +103,10 @@ _load_script_dependencies() {
 # Load other script files and unset the function
 _load_script_dependencies
 unset -f _load_script_dependencies
+
+# -----------------------------------------
+### FUNCTIONS
+# -----------------------------------------
 
 # Installs the PostgreSQL datasource to the WildFly server. The
 # connection url, username and password may be supplied as arguments,
