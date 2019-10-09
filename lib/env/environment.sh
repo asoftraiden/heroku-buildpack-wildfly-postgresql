@@ -27,9 +27,11 @@ export_env_dir() {
     if [ -d "${envDir}" ]; then
         local envFile
         for envFile in "${envDir}"/*; do
-            local varname="${envFile#${envDir}/}"
-            if echo "${varname}" | grep -E "${whitelist}" | grep -Evq "${blacklist}"; then
-                export "${varname}=$(cat "${envFile}")"
+            if [ -f "${envFile}" ]; then
+                local varname="${envFile#${envDir}/}"
+                if echo "${varname}" | grep -E "${whitelist}" | grep -Evq "${blacklist}"; then
+                    export "${varname}=$(cat "${envFile}")"
+                fi
             fi
         done
     fi
