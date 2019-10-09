@@ -2,7 +2,11 @@
 #
 # shellcheck disable=SC2155
 
+# Debug config var
 export BUILDPACK_DEBUG="${BUILDPACK_DEBUG:-"false"}"
+
+# Buildpack Log Prefix
+export BPLOG_PREFIX="${BPLOG_PREFIX:-"buildpack.wildfly-postgresql"}"
 
 # Prints a formatted debug message if debug mode is enabled. All
 # lines are indented following the Heroku output style.
@@ -47,7 +51,7 @@ debug_command() {
     if _debug_enabled; then
         local command="$*"
 
-        debug_detached "Executing following command: $*"
+        debug_detached "Executing following command: ${command}"
     fi
 }
 
@@ -135,7 +139,7 @@ debug_mtime() {
 
     if _debug_enabled; then
         local end="$(nowms)"
-        debug_detached "Time Measure: $(awk '{ printf "%s = %.3f s\n", $1, ($3 - $2) / 1000; }' <<< "${key} ${start} ${end}")"
+        debug_detached "Time Measure: $(awk '{ printf "%s = %.3f s\n", $1, ($3 - $2) / 1000; }' <<< "${BPLOG_PREFIX}.${key} ${start} ${end}")"
     fi
 
     mtime "${key}" "${start}"
@@ -157,7 +161,7 @@ debug_mmeasure() {
     local value="$2"
 
     if _debug_enabled; then
-        debug "Measure: ${key}=${value}"
+        debug "Measure: ${BPLOG_PREFIX}.${key}=${value}"
     fi
 
     mmeasure "${key}" "${value}"
