@@ -65,9 +65,9 @@ _load_script_dependencies() {
     source "${scriptDir}/vendor/load_buildpacks.sh"
 
     # Load output messages
-    source "${scriptDir}/messages/debug.sh"
     source "${scriptDir}/messages/errors.sh"
     source "${scriptDir}/messages/warnings.sh"
+    source "${scriptDir}/messages/debug.sh"
 
     # Load utilities
     source "${scriptDir}/util/common.sh"
