@@ -326,7 +326,7 @@ validate_postgresql_driver_url() {
 _get_postgresql_driver_url() {
     local postgresqlVersion="$1"
 
-    local postgresqlBaseUrl="http://central.maven.org/maven2/org/postgresql/postgresql"
+    local postgresqlBaseUrl="https://repo1.maven.org/maven2/org/postgresql/postgresql"
     local postgresqlDownloadUrl="${postgresqlBaseUrl}/${postgresqlVersion}/postgresql-${postgresqlVersion}.jar"
 
     echo "${postgresqlDownloadUrl}"
